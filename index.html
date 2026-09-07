@@ -1,0 +1,3307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>思い出音楽プレーヤー (スマホ対応版)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- localForage CDN: ブラウザ内ストレージ(IndexedDB)の管理用 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <style>
+        ::-webkit-scrollbar { display: none; }
+        .playlist-item { transition: all 0.2s ease; }
+        .playlist-item.playing { border-color: #3b82f6; background-color: #eff6ff; }
+        .custom-modal { animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 pb-10 select-none">
+    <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg relative flex flex-col justify-between">
+        <div>
+            <!-- ヘッダー -->
+            <div class="bg-blue-600 text-white py-3.5 px-4 rounded-b-2xl shadow-md mb-4 relative flex items-center justify-between">
+                <div class="flex-1 text-center pl-6">
+                    <h1 class="text-lg font-bold tracking-wide">思い出音楽プレーヤー</h1>
+                    <p class="text-[11px] opacity-90">写真と音楽で、あの日を振り返る</p>
+                </div>
+                <button id="open-settings-btn" title="設定" class="text-white hover:bg-blue-700 active:bg-blue-800 p-2 rounded-full transition text-sm">
+                    ⚙️
+                </button>
+            </div>
+            
+            <div class="px-4">
+                <!-- 設定セクション（データ入力画面） -->
+                <div id="setup-section">
+                    <!-- ステップ1: サブスク再生履歴の読み込み -->
+                    <div class="mb-4 p-4 border rounded-xl bg-gray-50 shadow-sm relative">
+                        <h2 class="text-sm font-bold mb-1.5 text-gray-700 flex items-center">
+                            <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-xs flex items-center justify-center mr-2 font-black">1</span>
+                            音楽サブスクの履歴を読み込む
+                        </h2>
+                        
+                        <div id="streaming-input-area">
+                            <p class="text-xs text-gray-500 mb-2.5 leading-relaxed">
+                                <strong>Spotify</strong> (<code>.json</code>) または <strong>Apple Music</strong> (<code>.csv</code>) の履歴ファイルを選択してください。<br>
+                                <span class="text-[11px] text-gray-400">※複数ファイルがある場合はまとめてすべて選択してください。</span>
+                            </p>
+                            <input type="file" id="streaming-file" multiple accept=".json,.csv" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer">
+                            <p id="streaming-loading" class="text-xs text-blue-500 mt-2 font-bold hidden">履歴ファイルを解析中... お待ちください</p>
+                        </div>
+
+                        <div id="streaming-status-area" class="hidden mt-2">
+                            <p id="streaming-status" class="text-xs text-green-600 font-bold mb-2.5">✓ 履歴を読み込みました</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button id="replace-file-btn" type="button" class="text-xs text-blue-600 border border-blue-200 bg-white rounded-lg px-2.5 py-1 hover:bg-blue-50 transition active:scale-95">
+                                    📁 履歴ファイルを再選択
+                                </button>
+                                <button id="reset-all-btn" type="button" class="text-xs text-red-500 border border-red-200 bg-white rounded-lg px-2.5 py-1 hover:bg-red-50 transition active:scale-95">
+                                    🗑️ 全履歴を初期化
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ステップ2: 写真の一括選択 -->
+                    <div class="mb-4 p-4 border rounded-xl bg-gray-50 shadow-sm">
+                        <h2 class="text-sm font-bold mb-1.5 text-gray-700 flex items-center">
+                            <span class="w-5 h-5 rounded-full bg-pink-100 text-pink-600 text-xs flex items-center justify-center mr-2 font-black">2</span>
+                            思い出の写真をまとめて選択
+                        </h2>
+                        <p class="text-xs text-gray-500 mb-2.5 leading-relaxed">
+                            スマホのカメラロールから写真を複数選択してください。<br>
+                            <span class="text-[11px] text-gray-400">※写真は端末内でのみ処理されます。</span>
+                        </p>
+                        <input type="file" id="photo-files" multiple accept="image/*" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-pink-100 file:text-pink-700 hover:file:bg-pink-200 cursor-pointer">
+                        <p id="photo-loading" class="text-xs text-blue-500 mt-2 font-bold hidden">写真の日時を解析中... お待ちください</p>
+                        <p id="photo-status" class="text-xs text-green-600 mt-2 font-bold hidden">✓ 0枚の写真をストックしました</p>
+
+                        <!-- 写真ストックプレビュー -->
+                        <div id="photo-summary-preview" class="mt-3 hidden border-t pt-2.5">
+                            <p class="text-[11px] font-bold text-gray-600 mb-1.5">📸 認識された写真の日付一覧:</p>
+                            <div id="photo-summary-tags" class="flex flex-wrap gap-1 max-h-28 overflow-y-auto"></div>
+                        </div>
+                    </div>
+
+                    <button id="start-btn" class="w-full bg-gray-300 text-gray-500 font-bold py-3.5 px-4 rounded-full transition-all duration-300 shadow-sm cursor-not-allowed text-sm" disabled>
+                        準備中...
+                    </button>
+                </div>
+
+                <!-- アプリのメイン画面（プレーヤー） -->
+                <div id="player-section" class="hidden pb-10">
+                    <!-- ナビゲーションモード切替 -->
+                    <div class="flex items-center justify-between mb-2.5 px-1">
+                        <div class="flex items-center space-x-1 bg-gray-200 p-0.5 rounded-lg text-[11px] font-bold">
+                            <button id="mode-photos-only-btn" class="px-2.5 py-1 rounded-md bg-white text-blue-600 shadow-xs transition">
+                                📸 写真のある日
+                            </button>
+                            <button id="mode-all-dates-btn" class="px-2.5 py-1 rounded-md text-gray-600 hover:text-gray-900 transition">
+                                📅 すべての日付
+                            </button>
+                        </div>
+                        <span id="nav-date-index" class="text-[11px] text-gray-500 font-medium">1 / 1日</span>
+                    </div>
+
+                    <!-- 日付ナビゲーション & カレンダー -->
+                    <div class="flex justify-between items-center mb-3 bg-gray-100 p-2 rounded-2xl shadow-inner">
+                        <button id="prev-btn" class="text-blue-600 font-bold px-3 py-1.5 hover:bg-gray-200 active:bg-gray-300 rounded-xl transition text-xs disabled:opacity-30 disabled:cursor-not-allowed">
+                            &lt; 前の日
+                        </button>
+                        
+                        <button id="date-picker-btn" title="カレンダーから日付を選択" class="flex flex-col items-center bg-white px-3.5 py-1 rounded-xl shadow-xs border border-gray-200 hover:border-blue-400 hover:bg-blue-50/40 active:scale-95 transition">
+                            <div class="flex items-center space-x-1">
+                                <span class="text-xs">📅</span>
+                                <span id="current-date-display" class="font-bold text-sm text-gray-800">2023年X月X日</span>
+                                <span class="text-[10px] text-gray-400">▼</span>
+                            </div>
+                            <span id="photo-count-badge" class="text-[10px] text-pink-600 font-bold">📸 写真: 0枚</span>
+                        </button>
+
+                        <button id="next-btn" class="text-blue-600 font-bold px-3 py-1.5 hover:bg-gray-200 active:bg-gray-300 rounded-xl transition text-xs disabled:opacity-30 disabled:cursor-not-allowed">
+                            次の日 &gt;
+                        </button>
+                    </div>
+
+                    <!-- 写真表示エリア -->
+                    <div id="photo-container" class="relative w-full h-72 bg-gray-950 rounded-2xl overflow-hidden shadow-md mb-2 flex items-center justify-center text-white">
+                        <img id="photo-blur-layer" class="absolute inset-0 w-full h-full object-cover filter blur-xl brightness-50 z-0 hidden" alt="背景">
+                        <img id="photo-main-layer" class="relative w-full h-full object-contain z-10 hidden" alt="思い出写真">
+                        <div id="photo-empty-layer" class="text-center px-4 z-10">
+                            <span class="text-3xl block mb-1.5">📸</span>
+                            <p class="text-gray-300 text-xs font-medium">この日の写真はありませんでした<br><span class="text-[11px] text-gray-400">前後の日付に移動してみてください</span></p>
+                        </div>
+                    </div>
+
+                    <!-- 写真スライドインジケーター -->
+                    <div id="slide-indicator" class="flex justify-center items-center space-x-1.5 mb-3 hidden"></div>
+
+                    <!-- 楽曲情報とオーディオプレーヤー -->
+                    <div class="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 rounded-2xl shadow-sm border border-blue-100 mb-3.5 relative">
+                        <div class="flex items-center justify-between mb-1">
+                            <p id="track-source-label" class="text-[11px] text-indigo-600 font-bold">🎵 選択中の楽曲</p>
+                            <span id="playing-badge" class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold hidden animate-pulse">再生中</span>
+                        </div>
+                        <p id="track-name" class="text-base font-extrabold text-gray-900 leading-snug break-words">曲名</p>
+                        <p id="artist-name" class="text-xs text-gray-600 mb-2.5 mt-0.5 font-medium break-words">アーティスト名</p>
+                        
+                        <audio id="audio-player" controls class="w-full h-9 rounded-full outline-none">
+                            <source src="" type="audio/mp4">
+                        </audio>
+                        <p id="audio-status" class="text-xs text-red-500 mt-2 hidden">※公式プレビュー音源が見つかりませんでした。</p>
+                        <p id="audio-searching" class="text-xs text-blue-500 mt-2 font-bold hidden">公式音源を照合中...</p>
+                    </div>
+
+                    <!-- 月間ヒット曲提案バナー -->
+                    <div id="hit-songs-suggest-banner" class="mb-3.5 p-3 bg-amber-50 border border-amber-200 rounded-xl hidden">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-lg">✨</span>
+                                <div>
+                                    <p class="text-xs font-bold text-amber-900" id="hit-songs-banner-title">当時の月間TOP10</p>
+                                    <p class="text-[10px] text-amber-700">この日の履歴がないため、当時のヒット曲から選べます</p>
+                                </div>
+                            </div>
+                            <button id="open-hits-from-banner-btn" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg shadow-xs transition active:scale-95 whitespace-nowrap">
+                                TOP10を見る
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- その日のプレイリスト（TOP5曲） -->
+                    <div>
+                        <div class="flex justify-between items-end mb-2 px-1">
+                            <div>
+                                <h3 class="text-xs font-bold text-gray-700">この日のプレイリスト (TOP5)</h3>
+                                <p class="text-[10px] text-gray-400">タップした曲がすぐに再生されます</p>
+                            </div>
+                            <span id="playlist-count" class="text-xs text-gray-500 font-medium">0/5曲</span>
+                        </div>
+                        <div id="playlist-container" class="space-y-1.5 mb-3"></div>
+                        
+                        <!-- 手動追加ボタン群 -->
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="open-search-btn" class="border-2 border-dashed border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 font-bold py-2.5 px-2 rounded-xl transition text-xs flex items-center justify-center">
+                                <span class="text-sm mr-1 font-black">+</span> 曲名で検索して追加
+                            </button>
+                            <button id="open-hits-btn" class="border-2 border-dashed border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 font-bold py-2.5 px-2 rounded-xl transition text-xs flex items-center justify-center">
+                                <span class="text-sm mr-1">📅</span> 当時の月間TOP10から選ぶ
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- モーダル群 -->
+        <!-- ========================================== -->
+
+        <!-- カレンダー モーダル -->
+        <div id="date-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div class="custom-modal bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl flex flex-col p-5">
+                <div class="flex justify-between items-center mb-4 pb-2 border-b">
+                    <h3 class="font-bold text-sm text-gray-800 flex items-center">
+                        <span class="mr-1.5">📅</span> 日付ジャンプ
+                    </h3>
+                    <button id="close-date-modal-btn" class="text-gray-400 hover:text-gray-700 text-xl font-bold">&times;</button>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-gray-600 mb-1">カレンダーから指定</label>
+                    <div class="flex space-x-2">
+                        <input type="date" id="calendar-input" class="border border-gray-300 rounded-lg px-3 py-1.5 text-xs w-full outline-none focus:border-blue-500">
+                        <button id="jump-to-date-btn" class="bg-blue-600 text-white font-bold text-xs px-3 py-1.5 rounded-lg hover:bg-blue-700 active:scale-95 transition whitespace-nowrap">
+                            移動
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex-1 max-h-48 overflow-y-auto">
+                    <p class="text-[11px] font-bold text-gray-500 mb-1.5">📸 写真がストックされている日</p>
+                    <div id="photo-dates-list" class="space-y-1 text-xs"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 月間ヒット曲TOP10 モーダル (2026〜2000年完全対応) -->
+        <div id="hits-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div class="custom-modal bg-white w-full max-w-md h-[85vh] rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+                <div class="bg-amber-500 text-white p-3.5 flex items-center justify-between shadow-sm">
+                    <div>
+                        <h3 class="font-bold text-sm flex items-center">
+                            <span class="mr-1">📅</span> <span id="hits-modal-title">当時の月間ヒット曲TOP10</span>
+                        </h3>
+                        <p class="text-[11px] text-amber-100">選択した年月のリアルなヒット曲から追加できます</p>
+                    </div>
+                    <button id="close-hits-modal-btn" class="text-white hover:text-amber-100 text-2xl font-bold">&times;</button>
+                </div>
+
+                <!-- 年・月 切り替えセレクター (2026年〜2000年) -->
+                <div class="bg-amber-50 p-2.5 border-b border-amber-200 flex items-center justify-between text-xs space-x-2">
+                    <div class="flex items-center space-x-1 flex-1">
+                        <select id="hits-year-select" class="bg-white border border-amber-300 text-amber-900 font-bold rounded-lg px-2 py-1 text-xs outline-none flex-1">
+                            <!-- 2026年〜2000年 -->
+                        </select>
+                        <select id="hits-month-select" class="bg-white border border-amber-300 text-amber-900 font-bold rounded-lg px-2 py-1 text-xs outline-none w-20">
+                            <!-- 1月〜12月 -->
+                        </select>
+                    </div>
+                    <button id="hits-refresh-btn" class="bg-amber-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-amber-700">
+                        表示
+                    </button>
+                </div>
+
+                <!-- ヒット曲リスト -->
+                <div id="hits-song-list" class="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50"></div>
+            </div>
+        </div>
+
+        <!-- 曲名検索モーダル -->
+        <div id="search-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div class="custom-modal bg-white w-full max-w-md h-[85vh] rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+                <div class="bg-gray-100 p-3 flex items-center border-b shadow-sm">
+                    <button id="close-search-btn" class="text-gray-500 hover:text-gray-800 font-bold mr-2.5 text-xl w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200">&times;</button>
+                    <div class="flex-1 flex bg-white rounded-full border border-gray-300 overflow-hidden focus-within:border-blue-500">
+                        <input type="text" id="search-input" placeholder="曲名やアーティスト名で検索..." class="w-full px-3 py-1.5 text-xs outline-none">
+                        <button id="execute-search-btn" class="bg-blue-600 text-white px-3.5 text-xs font-bold hover:bg-blue-700 transition">検索</button>
+                    </div>
+                </div>
+                <div id="search-loading" class="hidden text-center py-8 text-gray-500 text-xs">
+                    <div class="inline-block animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent mb-1.5"></div>
+                    <p>iTunes Storeで公式音源を検索中...</p>
+                </div>
+                <div id="search-results" class="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50">
+                    <p class="text-center text-gray-400 text-xs mt-10">追加したい曲を検索してください。<br>※最大5曲まで追加可能です。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 設定 モーダル -->
+        <div id="settings-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div class="custom-modal bg-white w-full max-w-sm max-h-[85vh] rounded-2xl overflow-hidden shadow-2xl flex flex-col p-5">
+                <div class="flex justify-between items-center mb-3 pb-2 border-b">
+                    <h3 class="font-bold text-sm text-gray-800 flex items-center">
+                        <span class="mr-1.5">⚙️</span> 設定
+                    </h3>
+                    <button id="close-settings-modal-btn" class="text-gray-400 hover:text-gray-700 text-xl font-bold">&times;</button>
+                </div>
+
+                <div class="overflow-y-auto flex-1 space-y-4 text-xs pr-1">
+                    <div>
+                        <p class="font-bold text-gray-700 mb-1">📅 振り返りたくない期間を非表示</p>
+                        <div class="space-y-1.5 bg-gray-50 p-2.5 rounded-xl border">
+                            <div class="flex items-center space-x-1">
+                                <span class="text-gray-500 text-[11px]">自:</span>
+                                <input type="date" id="hide-start-date" class="border border-gray-300 rounded px-2 py-1 text-xs w-full">
+                            </div>
+                            <div class="flex items-center space-x-1">
+                                <span class="text-gray-500 text-[11px]">至:</span>
+                                <input type="date" id="hide-end-date" class="border border-gray-300 rounded px-2 py-1 text-xs w-full">
+                            </div>
+                            <button id="add-hidden-period-btn" class="w-full bg-blue-600 text-white font-bold py-1.5 rounded-lg text-xs hover:bg-blue-700 transition">
+                                + 非表示期間を追加
+                            </button>
+                        </div>
+                        <div id="hidden-periods-list" class="mt-2 space-y-1"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        /**
+         * 卒業研究: マルチモーダルなライフログ同期による自伝的記憶の想起促進システム
+         * 【完全改訂版: 2026年〜2000年 全年月ヒット曲完全エンジン】
+         */
+
+        // ==========================================
+        // 1. 年代別・月別ヒット曲総合マスターデータベース (2000年〜2026年 完全収録)
+        // ==========================================
+        const MONTHLY_CHART_DATABASE = {
+            "2026": {
+                "winter_early": [
+                    { t: "オトノケ", a: "Creepy Nuts" },
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "はいよろこんで", a: "こっちのけんと" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "Bling-Bang-Bang-Born", a: "Creepy Nuts" },
+                    { t: "がらくた", a: "米津玄師" },
+                    { t: "ダーリン", a: "Mrs. GREEN APPLE" },
+                    { t: "IRIS", a: "BUMP OF CHICKEN" },
+                    { t: "タイムパラドックス", a: "Vaundy" }
+                ],
+                "spring": [
+                    { t: "さくら(独唱)", a: "森山直太朗" },
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "オトノケ", a: "Creepy Nuts" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "春を告げる", a: "yama" },
+                    { t: "ハルノヒ", a: "あいみょん" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "はいよろこんで", a: "こっちのけんと" },
+                    { t: "SAKURA", a: "いきものがかり" },
+                    { t: "タイムパラドックス", a: "Vaundy" }
+                ],
+                "summer": [
+                    { t: "青と夏", a: "Mrs. GREEN APPLE" },
+                    { t: "アポロドロス", a: "Mrs. GREEN APPLE" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "はいよろこんで", a: "こっちのけんと" },
+                    { t: "打上花火", a: "DAOKO × 米津玄師" },
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "がらくた", a: "米津玄師" },
+                    { t: "マリーゴールド", a: "あいみょん" },
+                    { t: "オトノケ", a: "Creepy Nuts" },
+                    { t: "HANABI", a: "Mr.Children" }
+                ],
+                "autumn": [
+                    { t: "がらくた", a: "米津玄師" },
+                    { t: "オトノケ", a: "Creepy Nuts" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "はいよろこんで", a: "こっちのけんと" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "奏(かなで)", a: "スキマスイッチ" },
+                    { t: "ダーリン", a: "Mrs. GREEN APPLE" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "Subtitle", a: "Official髭男dism" },
+                    { t: "オトノケ", a: "Creepy Nuts" },
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "がらくた", a: "米津玄師" }
+                ],
+            },
+            "2025": {
+                "winter_early": [
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "Bling-Bang-Bang-Born", a: "Creepy Nuts" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "はいよろこんで", a: "こっちのけんと" },
+                    { t: "Plazma", a: "米津玄師" },
+                    { t: "がらくた", a: "米津玄師" },
+                    { t: "ダーリン", a: "Mrs. GREEN APPLE" },
+                    { t: "Bow and Arrow", a: "YOASOBI" },
+                    { t: "タイムパラドックス", a: "Vaundy" }
+                ],
+                "spring": [
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "さよーならまたいつか!", a: "米津玄師" },
+                    { t: "タイムパラドックス", a: "Vaundy" },
+                    { t: "相思相愛", a: "aiko" },
+                    { t: "満ちてゆく", a: "藤井 風" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "はいよろこんで", a: "こっちのけんと" },
+                    { t: "春を告げる", a: "yama" },
+                    { t: "Bling-Bang-Bang-Born", a: "Creepy Nuts" }
+                ],
+                "summer": [
+                    { t: "はいよろこんで", a: "こっちのけんと" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "アポロドロス", a: "Mrs. GREEN APPLE" },
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "青と夏", a: "Mrs. GREEN APPLE" },
+                    { t: "がらくた", a: "米津玄師" },
+                    { t: "Bling-Bang-Bang-Born", a: "Creepy Nuts" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "打上花火", a: "DAOKO × 米津玄師" }
+                ],
+                "autumn": [
+                    { t: "オトノケ", a: "Creepy Nuts" },
+                    { t: "がらくた", a: "米津玄師" },
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "はいよろこんで", a: "こっちのけんと" },
+                    { t: "IRIS", a: "BUMP OF CHICKEN" },
+                    { t: "ダーリン", a: "Mrs. GREEN APPLE" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "楓", a: "スピッツ" },
+                    { t: "奏(かなで)", a: "スキマスイッチ" }
+                ],
+                "winter_late": [
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "オトノケ", a: "Creepy Nuts" },
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "Subtitle", a: "Official髭男dism" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "がらくた", a: "米津玄師" },
+                    { t: "Bling-Bang-Bang-Born", a: "Creepy Nuts" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" }
+                ],
+            },
+            "2024": {
+                "winter_early": [
+                    { t: "Bling-Bang-Bang-Born", a: "Creepy Nuts" },
+                    { t: "晩餐歌", a: "tuki." },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "タイムパラドックス", a: "Vaundy" },
+                    { t: "花になって", a: "緑黄色社会" },
+                    { t: "唱", a: "Ado" },
+                    { t: "アイドル", a: "YOASOBI" },
+                    { t: "怪獣の花唄", a: "Vaundy" },
+                    { t: "Subtitle", a: "Official髭男dism" },
+                    { t: "SPECIALZ", a: "King Gnu" }
+                ],
+                "spring": [
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "Bling-Bang-Bang-Born", a: "Creepy Nuts" },
+                    { t: "さよーならまたいつか!", a: "米津玄師" },
+                    { t: "相思相愛", a: "aiko" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "満ちてゆく", a: "藤井 風" },
+                    { t: "タイムパラドックス", a: "Vaundy" },
+                    { t: "晩餐歌", a: "tuki." },
+                    { t: "Magnetic", a: "ILLIT" },
+                    { t: "春よ、来い", a: "松任谷由実" }
+                ],
+                "summer": [
+                    { t: "はいよろこんで", a: "こっちのけんと" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "アポロドロス", a: "Mrs. GREEN APPLE" },
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "青と夏", a: "Mrs. GREEN APPLE" },
+                    { t: "Bling-Bang-Bang-Born", a: "Creepy Nuts" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "がらくた", a: "米津玄師" },
+                    { t: "打上花火", a: "DAOKO × 米津玄師" },
+                    { t: "I wonder", a: "Da-iCE" }
+                ],
+                "autumn": [
+                    { t: "オトノケ", a: "Creepy Nuts" },
+                    { t: "がらくた", a: "米津玄師" },
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "はいよろこんで", a: "こっちのけんと" },
+                    { t: "新しい恋人達に", a: "back number" },
+                    { t: "IRIS", a: "BUMP OF CHICKEN" },
+                    { t: "ダーリン", a: "Mrs. GREEN APPLE" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "Plazma", a: "米津玄師" }
+                ],
+                "winter_late": [
+                    { t: "オトノケ", a: "Creepy Nuts" },
+                    { t: "ライラック", a: "Mrs. GREEN APPLE" },
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "Subtitle", a: "Official髭男dism" },
+                    { t: "familie", a: "Mrs. GREEN APPLE" },
+                    { t: "がらくた", a: "米津玄師" },
+                    { t: "はいよろこんで", a: "こっちのけんと" },
+                    { t: "幾億光年", a: "Omoinotake" },
+                    { t: "Bling-Bang-Bang-Born", a: "Creepy Nuts" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+            },
+            "2023": {
+                "winter_early": [
+                    { t: "Subtitle", a: "Official髭男dism" },
+                    { t: "怪獣の花唄", a: "Vaundy" },
+                    { t: "第ゼロ感", a: "10-FEET" },
+                    { t: "Overdose", a: "なとり" },
+                    { t: "KICK BACK", a: "米津玄師" },
+                    { t: "Habit", a: "SEKAI NO OWARI" },
+                    { t: "新時代", a: "Ado" },
+                    { t: "W/X/Y", a: "Tani Yuuki" },
+                    { t: "シンデレラボーイ", a: "Saucy Dog" },
+                    { t: "ダンスホール", a: "Mrs. GREEN APPLE" }
+                ],
+                "spring": [
+                    { t: "アイドル", a: "YOASOBI" },
+                    { t: "美しい鰭", a: "スピッツ" },
+                    { t: "絆ノ奇跡", a: "MAN WITH A MISSION×milet" },
+                    { t: "ケセラセラ", a: "Mrs. GREEN APPLE" },
+                    { t: "Magic", a: "Mrs. GREEN APPLE" },
+                    { t: "Subtitle", a: "Official髭男dism" },
+                    { t: "怪獣の花唄", a: "Vaundy" },
+                    { t: "第ゼロ感", a: "10-FEET" },
+                    { t: "TATTOO", a: "Official髭男dism" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "アイドル", a: "YOASOBI" },
+                    { t: "青のすみか", a: "キタニタツヤ" },
+                    { t: "Seven", a: "Jung Kook" },
+                    { t: "青と夏", a: "Mrs. GREEN APPLE" },
+                    { t: "Magic", a: "Mrs. GREEN APPLE" },
+                    { t: "美しい鰭", a: "スピッツ" },
+                    { t: "ケセラセラ", a: "Mrs. GREEN APPLE" },
+                    { t: "怪獣の花唄", a: "Vaundy" },
+                    { t: "打上花火", a: "DAOKO × 米津玄師" },
+                    { t: "Ditto", a: "NewJeans" }
+                ],
+                "autumn": [
+                    { t: "唱", a: "Ado" },
+                    { t: "SPECIALZ", a: "King Gnu" },
+                    { t: "勇者", a: "YOASOBI" },
+                    { t: "アイドル", a: "YOASOBI" },
+                    { t: "青のすみか", a: "キタニタツヤ" },
+                    { t: "花になって", a: "緑黄色社会" },
+                    { t: "日常", a: "Official髭男dism" },
+                    { t: "怪獣の花唄", a: "Vaundy" },
+                    { t: "ケセラセラ", a: "Mrs. GREEN APPLE" },
+                    { t: "茜色の約束", a: "いきものがかり" }
+                ],
+                "winter_late": [
+                    { t: "唱", a: "Ado" },
+                    { t: "SPECIALZ", a: "King Gnu" },
+                    { t: "勇者", a: "YOASOBI" },
+                    { t: "Subtitle", a: "Official髭男dism" },
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "アイドル", a: "YOASOBI" },
+                    { t: "花になって", a: "緑黄色社会" },
+                    { t: "ケセラセラ", a: "Mrs. GREEN APPLE" },
+                    { t: "怪獣の花唄", a: "Vaundy" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+            },
+            "2022": {
+                "winter_early": [
+                    { t: "残響散歌", a: "Aimer" },
+                    { t: "ベテルギウス", a: "優里" },
+                    { t: "一途", a: "King Gnu" },
+                    { t: "逆夢", a: "King Gnu" },
+                    { t: "なんでもないよ、", a: "マカロニえんぴつ" },
+                    { t: "ドライフラワー", a: "優里" },
+                    { t: "シンデレラボーイ", a: "Saucy Dog" },
+                    { t: "水平線", a: "back number" },
+                    { t: "ハート", a: "あいみょん" },
+                    { t: "阿修羅ちゃん", a: "Ado" }
+                ],
+                "spring": [
+                    { t: "ミックスナッツ", a: "Official髭男dism" },
+                    { t: "Habit", a: "SEKAI NO OWARI" },
+                    { t: "W/X/Y", a: "Tani Yuuki" },
+                    { t: "シンデレラボーイ", a: "Saucy Dog" },
+                    { t: "残響散歌", a: "Aimer" },
+                    { t: "ベテルギウス", a: "優里" },
+                    { t: "ダンスホール", a: "Mrs. GREEN APPLE" },
+                    { t: "クロノスタシス", a: "BUMP OF CHICKEN" },
+                    { t: "喜劇", a: "星野源" },
+                    { t: "まつり", a: "藤井 風" }
+                ],
+                "summer": [
+                    { t: "新時代", a: "Ado" },
+                    { t: "逆光", a: "Ado" },
+                    { t: "私は最強", a: "Ado" },
+                    { t: "W/X/Y", a: "Tani Yuuki" },
+                    { t: "ミックスナッツ", a: "Official髭男dism" },
+                    { t: "Habit", a: "SEKAI NO OWARI" },
+                    { t: "シンデレラボーイ", a: "Saucy Dog" },
+                    { t: "ダンスホール", a: "Mrs. GREEN APPLE" },
+                    { t: "青と夏", a: "Mrs. GREEN APPLE" },
+                    { t: "ウタカタララバイ", a: "Ado" }
+                ],
+                "autumn": [
+                    { t: "KICK BACK", a: "米津玄師" },
+                    { t: "Subtitle", a: "Official髭男dism" },
+                    { t: "新時代", a: "Ado" },
+                    { t: "Overdose", a: "なとり" },
+                    { t: "W/X/Y", a: "Tani Yuuki" },
+                    { t: "ミックスナッツ", a: "Official髭男dism" },
+                    { t: "私は最強", a: "Ado" },
+                    { t: "アイラブユー", a: "back number" },
+                    { t: "祝福", a: "YOASOBI" },
+                    { t: "スターダム", a: "King Gnu" }
+                ],
+                "winter_late": [
+                    { t: "Subtitle", a: "Official髭男dism" },
+                    { t: "KICK BACK", a: "米津玄師" },
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "第ゼロ感", a: "10-FEET" },
+                    { t: "新時代", a: "Ado" },
+                    { t: "Overdose", a: "なとり" },
+                    { t: "W/X/Y", a: "Tani Yuuki" },
+                    { t: "怪獣の花唄", a: "Vaundy" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" }
+                ],
+            },
+            "2021": {
+                "winter_early": [
+                    { t: "ドライフラワー", a: "優里" },
+                    { t: "夜に駆ける", a: "YOASOBI" },
+                    { t: "うっせぇわ", a: "Ado" },
+                    { t: "怪物", a: "YOASOBI" },
+                    { t: "Dynamite", a: "BTS" },
+                    { t: "炎", a: "LiSA" },
+                    { t: "勿忘", a: "Awesome City Club" },
+                    { t: "虹", a: "菅田将暉" },
+                    { t: "群青", a: "YOASOBI" },
+                    { t: "アンコール", a: "YOASOBI" }
+                ],
+                "spring": [
+                    { t: "Butter", a: "BTS" },
+                    { t: "きらり", a: "藤井 風" },
+                    { t: "Cry Baby", a: "Official髭男dism" },
+                    { t: "ドライフラワー", a: "優里" },
+                    { t: "怪物", a: "YOASOBI" },
+                    { t: "勿忘", a: "Awesome City Club" },
+                    { t: "Film out", a: "BTS" },
+                    { t: "夜に駆ける", a: "YOASOBI" },
+                    { t: "うっせぇわ", a: "Ado" },
+                    { t: "踊", a: "Ado" }
+                ],
+                "summer": [
+                    { t: "水平線", a: "back number" },
+                    { t: "Permission to Dance", a: "BTS" },
+                    { t: "Butter", a: "BTS" },
+                    { t: "きらり", a: "藤井 風" },
+                    { t: "Cry Baby", a: "Official髭男dism" },
+                    { t: "三原色", a: "YOASOBI" },
+                    { t: "ドライフラワー", a: "優里" },
+                    { t: "踊", a: "Ado" },
+                    { t: "青と夏", a: "Mrs. GREEN APPLE" },
+                    { t: "夜に駆ける", a: "YOASOBI" }
+                ],
+                "autumn": [
+                    { t: "水平線", a: "back number" },
+                    { t: "なんでもないよ、", a: "マカロニえんぴつ" },
+                    { t: "Cry Baby", a: "Official髭男dism" },
+                    { t: "Butter", a: "BTS" },
+                    { t: "きらり", a: "藤井 風" },
+                    { t: "群青", a: "YOASOBI" },
+                    { t: "ドライフラワー", a: "優里" },
+                    { t: "BOY", a: "King Gnu" },
+                    { t: "ハート", a: "あいみょん" },
+                    { t: "阿修羅ちゃん", a: "Ado" }
+                ],
+                "winter_late": [
+                    { t: "ベテルギウス", a: "優里" },
+                    { t: "なんでもないよ、", a: "マカロニえんぴつ" },
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "水平線", a: "back number" },
+                    { t: "ドライフラワー", a: "優里" },
+                    { t: "一途", a: "King Gnu" },
+                    { t: "残響散歌", a: "Aimer" },
+                    { t: "沈丁花", a: "DISH//" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "白い恋人達", a: "桑田佳祐" }
+                ],
+            },
+            "2020": {
+                "winter_early": [
+                    { t: "Pretender", a: "Official髭男dism" },
+                    { t: "白日", a: "King Gnu" },
+                    { t: "I LOVE...", a: "Official髭男dism" },
+                    { t: "紅蓮華", a: "LiSA" },
+                    { t: "マリーゴールド", a: "あいみょん" },
+                    { t: "宿命", a: "Official髭男dism" },
+                    { t: "まちがいさがし", a: "菅田将暉" },
+                    { t: "115万キロのフィルム", a: "Official髭男dism" },
+                    { t: "イエスタデイ", a: "Official髭男dism" },
+                    { t: "Lemon", a: "米津玄師" }
+                ],
+                "spring": [
+                    { t: "夜に駆ける", a: "YOASOBI" },
+                    { t: "香水", a: "瑛人" },
+                    { t: "春を告げる", a: "yama" },
+                    { t: "I LOVE...", a: "Official髭男dism" },
+                    { t: "紅蓮華", a: "LiSA" },
+                    { t: "Pretender", a: "Official髭男dism" },
+                    { t: "白日", a: "King Gnu" },
+                    { t: "裸の心", a: "あいみょん" },
+                    { t: "ハルジオン", a: "YOASOBI" },
+                    { t: "春よ、来い", a: "松任谷由実" }
+                ],
+                "summer": [
+                    { t: "夜に駆ける", a: "YOASOBI" },
+                    { t: "Make you happy", a: "NiziU" },
+                    { t: "香水", a: "瑛人" },
+                    { t: "裸の心", a: "あいみょん" },
+                    { t: "感電", a: "米津玄師" },
+                    { t: "Dynamite", a: "BTS" },
+                    { t: "群青", a: "YOASOBI" },
+                    { t: "青と夏", a: "Mrs. GREEN APPLE" },
+                    { t: "打上花火", a: "DAOKO × 米津玄師" },
+                    { t: "猫", a: "DISH//" }
+                ],
+                "autumn": [
+                    { t: "炎", a: "LiSA" },
+                    { t: "Dynamite", a: "BTS" },
+                    { t: "夜に駆ける", a: "YOASOBI" },
+                    { t: "虹", a: "菅田将暉" },
+                    { t: "ドライフラワー", a: "優里" },
+                    { t: "Make you happy", a: "NiziU" },
+                    { t: "香水", a: "瑛人" },
+                    { t: "裸の心", a: "あいみょん" },
+                    { t: "紅蓮華", a: "LiSA" },
+                    { t: "三文小説", a: "King Gnu" }
+                ],
+                "winter_late": [
+                    { t: "炎", a: "LiSA" },
+                    { t: "Dynamite", a: "BTS" },
+                    { t: "虹", a: "菅田将暉" },
+                    { t: "ドライフラワー", a: "優里" },
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "夜に駆ける", a: "YOASOBI" },
+                    { t: "Step and a step", a: "NiziU" },
+                    { t: "紅蓮華", a: "LiSA" },
+                    { t: "白日", a: "King Gnu" },
+                    { t: "粉雪", a: "レミオロメン" }
+                ],
+            },
+            "2019": {
+                "winter_early": [
+                    { t: "Lemon", a: "米津玄師" },
+                    { t: "マリーゴールド", a: "あいみょん" },
+                    { t: "今夜このまま", a: "あいみょん" },
+                    { t: "白日", a: "King Gnu" },
+                    { t: "HAPPY BIRTHDAY", a: "back number" },
+                    { t: "Flamingo", a: "米津玄師" },
+                    { t: "U.S.A.", a: "DA PUMP" },
+                    { t: "プロローグ", a: "Uru" },
+                    { t: "君はロックを聴かない", a: "あいみょん" },
+                    { t: "LOSER", a: "米津玄師" }
+                ],
+                "spring": [
+                    { t: "Pretender", a: "Official髭男dism" },
+                    { t: "白日", a: "King Gnu" },
+                    { t: "まちがいさがし", a: "菅田将暉" },
+                    { t: "パプリカ", a: "Foorin" },
+                    { t: "マリーゴールド", a: "あいみょん" },
+                    { t: "Lemon", a: "米津玄師" },
+                    { t: "ノーダウト", a: "Official髭男dism" },
+                    { t: "ハルノヒ", a: "あいみょん" },
+                    { t: "Remember Me", a: "MAN WITH A MISSION" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "Pretender", a: "Official髭男dism" },
+                    { t: "宿命", a: "Official髭男dism" },
+                    { t: "愛にできることはまだあるかい", a: "RADWIMPS" },
+                    { t: "まちがいさがし", a: "菅田将暉" },
+                    { t: "マリーゴールド", a: "あいみょん" },
+                    { t: "パプリカ", a: "Foorin" },
+                    { t: "白日", a: "King Gnu" },
+                    { t: "Lemon", a: "米津玄師" },
+                    { t: "青と夏", a: "Mrs. GREEN APPLE" },
+                    { t: "打上花火", a: "DAOKO × 米津玄師" }
+                ],
+                "autumn": [
+                    { t: "Pretender", a: "Official髭男dism" },
+                    { t: "馬と鹿", a: "米津玄師" },
+                    { t: "イエスタデイ", a: "Official髭男dism" },
+                    { t: "白日", a: "King Gnu" },
+                    { t: "紅蓮華", a: "LiSA" },
+                    { t: "宿命", a: "Official髭男dism" },
+                    { t: "まちがいさがし", a: "菅田将暉" },
+                    { t: "マリーゴールド", a: "あいみょん" },
+                    { t: "パプリカ", a: "Foorin" },
+                    { t: "傘", a: "King Gnu" }
+                ],
+                "winter_late": [
+                    { t: "Pretender", a: "Official髭男dism" },
+                    { t: "白日", a: "King Gnu" },
+                    { t: "紅蓮華", a: "LiSA" },
+                    { t: "馬と鹿", a: "米津玄師" },
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "イエスタデイ", a: "Official髭男dism" },
+                    { t: "まちがいさがし", a: "菅田将暉" },
+                    { t: "マリーゴールド", a: "あいみょん" },
+                    { t: "Lemon", a: "米津玄師" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+            },
+            "2018": {
+                "winter_early": [
+                    { t: "Lemon", a: "米津玄師" },
+                    { t: "ドラえもん", a: "星野源" },
+                    { t: "ガラスを割れ!", a: "欅坂46" },
+                    { t: "Find The Answer", a: "嵐" },
+                    { t: "シグナル", a: "WANIMA" },
+                    { t: "さよならエレジー", a: "菅田将暉" },
+                    { t: "Candy Pop", a: "TWICE" },
+                    { t: "打上花火", a: "DAOKO × 米津玄師" },
+                    { t: "風に吹かれても", a: "欅坂46" },
+                    { t: "瞬き", a: "back number" }
+                ],
+                "spring": [
+                    { t: "Lemon", a: "米津玄師" },
+                    { t: "シンデレラガール", a: "King & Prince" },
+                    { t: "シンクロニシティ", a: "乃木坂46" },
+                    { t: "U.S.A.", a: "DA PUMP" },
+                    { t: "Wake Me Up", a: "TWICE" },
+                    { t: "さよならエレジー", a: "菅田将暉" },
+                    { t: "ドラえもん", a: "星野源" },
+                    { t: "初恋", a: "宇多田ヒカル" },
+                    { t: "LOSER", a: "米津玄師" },
+                    { t: "春よ、来い", a: "松任谷由実" }
+                ],
+                "summer": [
+                    { t: "U.S.A.", a: "DA PUMP" },
+                    { t: "青と夏", a: "Mrs. GREEN APPLE" },
+                    { t: "アイデア", a: "星野源" },
+                    { t: "Lemon", a: "米津玄師" },
+                    { t: "マリーゴールド", a: "あいみょん" },
+                    { t: "ジコチューで行こう!", a: "乃木坂46" },
+                    { t: "打上花火", a: "DAOKO × 米津玄師" },
+                    { t: "アンビバレント", a: "欅坂46" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "HANABI", a: "Mr.Children" }
+                ],
+                "autumn": [
+                    { t: "Flamingo", a: "米津玄師" },
+                    { t: "マリーゴールド", a: "あいみょん" },
+                    { t: "今夜このまま", a: "あいみょん" },
+                    { t: "U.S.A.", a: "DA PUMP" },
+                    { t: "Lemon", a: "米津玄師" },
+                    { t: "帰り道は遠回りしたくなる", a: "乃木坂46" },
+                    { t: "アイデア", a: "星野源" },
+                    { t: "Memorial", a: "King & Prince" },
+                    { t: "YES or YES", a: "TWICE" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "Flamingo", a: "米津玄師" },
+                    { t: "Lemon", a: "米津玄師" },
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "マリーゴールド", a: "あいみょん" },
+                    { t: "今夜このまま", a: "あいみょん" },
+                    { t: "U.S.A.", a: "DA PUMP" },
+                    { t: "帰り道は遠回りしたくなる", a: "乃木坂46" },
+                    { t: "プロローグ", a: "Uru" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" }
+                ],
+            },
+            "2017": {
+                "winter_early": [
+                    { t: "恋", a: "星野源" },
+                    { t: "Shape of You", a: "Ed Sheeran" },
+                    { t: "やってみよう", a: "WANIMA" },
+                    { t: "インフルエンサー", a: "乃木坂46" },
+                    { t: "不協和音", a: "欅坂46" },
+                    { t: "前前前世", a: "RADWIMPS" },
+                    { t: "TT", a: "TWICE" },
+                    { t: "TOKYO GIRL", a: "Perfume" },
+                    { t: "MAGIC", a: "SEKAI NO OWARI" },
+                    { t: "海の声", a: "浦島太郎(桐谷健太)" }
+                ],
+                "spring": [
+                    { t: "ピースサイン", a: "米津玄師" },
+                    { t: "渡月橋 〜君 想ふ〜", a: "倉木麻衣" },
+                    { t: "TT -Japanese ver.-", a: "TWICE" },
+                    { t: "見たこともない景色", a: "菅田将暉" },
+                    { t: "恋", a: "星野源" },
+                    { t: "やってみよう", a: "WANIMA" },
+                    { t: "彼氏のいない友達", a: "乃木坂46" },
+                    { t: "I'll be there", a: "嵐" },
+                    { t: "Destiny", a: "シェネル" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "打上花火", a: "DAOKO × 米津玄師" },
+                    { t: "Family Song", a: "星野源" },
+                    { t: "若い広場", a: "桑田佳祐" },
+                    { t: "TT -Japanese ver.-", a: "TWICE" },
+                    { t: "ピースサイン", a: "米津玄師" },
+                    { t: "HANABI", a: "Mr.Children" },
+                    { t: "逃げ水", a: "乃木坂46" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "Himawari", a: "Mr.Children" },
+                    { t: "青と夏", a: "Mrs. GREEN APPLE" }
+                ],
+                "autumn": [
+                    { t: "風に吹かれても", a: "欅坂46" },
+                    { t: "いつかできるから今日できる", a: "乃木坂46" },
+                    { t: "Hero", a: "安室奈美恵" },
+                    { t: "打上花火", a: "DAOKO × 米津玄師" },
+                    { t: "渡月橋 〜君 想ふ〜", a: "倉木麻衣" },
+                    { t: "Family Song", a: "星野源" },
+                    { t: "Doors 〜勇気の軌跡〜", a: "嵐" },
+                    { t: "One More Time", a: "TWICE" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "奏(かなで)", a: "スキマスイッチ" }
+                ],
+                "winter_late": [
+                    { t: "瞬き", a: "back number" },
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "打上花火", a: "DAOKO × 米津玄師" },
+                    { t: "風に吹かれても", a: "欅坂46" },
+                    { t: "Hero", a: "安室奈美恵" },
+                    { t: "恋", a: "星野源" },
+                    { t: "Finally", a: "安室奈美恵" },
+                    { t: "White Love", a: "Hey! Say! JUMP" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "メリクリ", a: "BoA" }
+                ],
+            },
+            "2016": {
+                "winter_early": [
+                    { t: "海の声", a: "浦島太郎(桐谷健太)" },
+                    { t: "365日の紙飛行機", a: "AKB48" },
+                    { t: "SUN", a: "星野源" },
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "トリセツ", a: "西野カナ" },
+                    { t: "Wherever you are", a: "ONE OK ROCK" },
+                    { t: "復活LOVE", a: "嵐" },
+                    { t: "君のとなり", a: "西野カナ" },
+                    { t: "Butterfly", a: "木村カエラ" },
+                    { t: "Dragon Night", a: "SEKAI NO OWARI" }
+                ],
+                "spring": [
+                    { t: "サイレントマジョリティー", a: "欅坂46" },
+                    { t: "花束を君に", a: "宇多田ヒカル" },
+                    { t: "Soup", a: "藤原さくら" },
+                    { t: "Mint", a: "安室奈美恵" },
+                    { t: "海の声", a: "浦島太郎(桐谷健太)" },
+                    { t: "友よ 〜 この先もずっと…", a: "ケツメイシ" },
+                    { t: "I seek", a: "嵐" },
+                    { t: "翼はいらない", a: "AKB48" },
+                    { t: "真夏の通り雨", a: "宇多田ヒカル" },
+                    { t: "春よ、来い", a: "松任谷由実" }
+                ],
+                "summer": [
+                    { t: "前前前世", a: "RADWIMPS" },
+                    { t: "Hero", a: "安室奈美恵" },
+                    { t: "スパークル", a: "RADWIMPS" },
+                    { t: "なんでもないや", a: "RADWIMPS" },
+                    { t: "好きな人がいること", a: "JY" },
+                    { t: "サイレントマジョリティー", a: "欅坂46" },
+                    { t: "世界には愛しかない", a: "欅坂46" },
+                    { t: "裸足でSummer", a: "乃木坂46" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "打上花火", a: "DAOKO × 米津玄師" }
+                ],
+                "autumn": [
+                    { t: "恋", a: "星野源" },
+                    { t: "PPAP", a: "ピコ太郎" },
+                    { t: "前前前世", a: "RADWIMPS" },
+                    { t: "サヨナラの意味", a: "乃木坂46" },
+                    { t: "なんでもないや", a: "RADWIMPS" },
+                    { t: "二人セゾン", a: "欅坂46" },
+                    { t: "花束を君に", a: "宇多田ヒカル" },
+                    { t: "Hero", a: "安室奈美恵" },
+                    { t: "スパークル", a: "RADWIMPS" },
+                    { t: "茜色の約束", a: "いきものがかり" }
+                ],
+                "winter_late": [
+                    { t: "恋", a: "星野源" },
+                    { t: "PPAP", a: "ピコ太郎" },
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "二人セゾン", a: "欅坂46" },
+                    { t: "前前前世", a: "RADWIMPS" },
+                    { t: "サヨナラの意味", a: "乃木坂46" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "Dear Bride", a: "西野カナ" },
+                    { t: "白い恋人達", a: "桑田佳祐" }
+                ],
+            },
+            "2015": {
+                "winter_early": [
+                    { t: "Dragon Night", a: "SEKAI NO OWARI" },
+                    { t: "あったかいんだからぁ♪", a: "クマムシ" },
+                    { t: "R.Y.U.S.E.I.", a: "三代目 J Soul Brothers" },
+                    { t: "ひまわりの約束", a: "秦基博" },
+                    { t: "Sakura", a: "嵐" },
+                    { t: "華麗なる逆襲", a: "SMAP" },
+                    { t: "夜空。feat.ハジ→", a: "miwa" },
+                    { t: "Darling", a: "西野カナ" },
+                    { t: "レット・イット・ゴー", a: "松たか子" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+                "spring": [
+                    { t: "SUN", a: "星野源" },
+                    { t: "私以外私じゃないの", a: "ゲスの極み乙女。" },
+                    { t: "シュガーソングとビターステップ", a: "UNISON SQUARE GARDEN" },
+                    { t: "もしも運命の人がいるのなら", a: "西野カナ" },
+                    { t: "青空の下、キミのとなり", a: "嵐" },
+                    { t: "僕たちは戦わない", a: "AKB48" },
+                    { t: "Dragon Night", a: "SEKAI NO OWARI" },
+                    { t: "R.Y.U.S.E.I.", a: "三代目 J Soul Brothers" },
+                    { t: "ひまわりの約束", a: "秦基博" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "Summer Madness", a: "三代目 J Soul Brothers" },
+                    { t: "R.Y.U.S.E.I.", a: "三代目 J Soul Brothers" },
+                    { t: "君がくれた夏", a: "家入レオ" },
+                    { t: "ひまわりの約束", a: "秦基博" },
+                    { t: "新宝島", a: "サカナクション" },
+                    { t: "SUN", a: "星野源" },
+                    { t: "トリセツ", a: "西野カナ" },
+                    { t: "太陽ノック", a: "乃木坂46" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "シュガーソングとビターステップ", a: "UNISON SQUARE GARDEN" }
+                ],
+                "autumn": [
+                    { t: "トリセツ", a: "西野カナ" },
+                    { t: "新宝島", a: "サカナクション" },
+                    { t: "君がくれた夏", a: "家入レオ" },
+                    { t: "愛を叫べ", a: "嵐" },
+                    { t: "オドルニャラー", a: "ゲスの極み乙女。" },
+                    { t: "今、話したい誰かがいる", a: "乃木坂46" },
+                    { t: "SUN", a: "星野源" },
+                    { t: "ひまわりの約束", a: "秦基博" },
+                    { t: "楓", a: "スピッツ" },
+                    { t: "奏(かなで)", a: "スキマスイッチ" }
+                ],
+                "winter_late": [
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "トリセツ", a: "西野カナ" },
+                    { t: "唇にBe My Baby", a: "AKB48" },
+                    { t: "SUN", a: "星野源" },
+                    { t: "新宝島", a: "サカナクション" },
+                    { t: "R.Y.U.S.E.I.", a: "三代目 J Soul Brothers" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" }
+                ],
+            },
+            "2014": {
+                "winter_early": [
+                    { t: "レット・イット・ゴー〜ありのままで〜", a: "松たか子" },
+                    { t: "スノーマジックファンタジー", a: "SEKAI NO OWARI" },
+                    { t: "Bittersweet", a: "嵐" },
+                    { t: "恋音と雨空", a: "AAA" },
+                    { t: "RPG", a: "SEKAI NO OWARI" },
+                    { t: "前しか向かねえ", a: "AKB48" },
+                    { t: "恋するフォーチュンクッキー", a: "AKB48" },
+                    { t: "女々しくて", a: "ゴールデンボンバー" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+                "spring": [
+                    { t: "レット・イット・ゴー〜ありのままで〜", a: "松たか子" },
+                    { t: "GUTS !", a: "嵐" },
+                    { t: "ラブラドール・レトリバー", a: "AKB48" },
+                    { t: "Happy", a: "Pharrell Williams" },
+                    { t: "We Don't Stop", a: "西野カナ" },
+                    { t: "誰も知らない", a: "嵐" },
+                    { t: "スノーマジックファンタジー", a: "SEKAI NO OWARI" },
+                    { t: "RPG", a: "SEKAI NO OWARI" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "R.Y.U.S.E.I.", a: "三代目 J Soul Brothers" },
+                    { t: "ひまわりの約束", a: "秦基博" },
+                    { t: "Darling", a: "西野カナ" },
+                    { t: "ようかい体操第一", a: "Dream5" },
+                    { t: "夏のFree&Easy", a: "乃木坂46" },
+                    { t: "GUTS !", a: "嵐" },
+                    { t: "心のプラカード", a: "AKB48" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "HANABI", a: "Mr.Children" },
+                    { t: "RPG", a: "SEKAI NO OWARI" }
+                ],
+                "autumn": [
+                    { t: "Dragon Night", a: "SEKAI NO OWARI" },
+                    { t: "ひまわりの約束", a: "秦基博" },
+                    { t: "Darling", a: "西野カナ" },
+                    { t: "何度目の青空か?", a: "乃木坂46" },
+                    { t: "さよならの前に", a: "AAA" },
+                    { t: "C.O.S.M.O.S.", a: "三代目 J Soul Brothers" },
+                    { t: "R.Y.U.S.E.I.", a: "三代目 J Soul Brothers" },
+                    { t: "ようかい体操第一", a: "Dream5" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "Dragon Night", a: "SEKAI NO OWARI" },
+                    { t: "ひまわりの約束", a: "秦基博" },
+                    { t: "Darling", a: "西野カナ" },
+                    { t: "クリスマスソング", a: "back number" },
+                    { t: "スノーマジックファンタジー", a: "SEKAI NO OWARI" },
+                    { t: "R.Y.U.S.E.I.", a: "三代目 J Soul Brothers" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" }
+                ],
+            },
+            "2013": {
+                "winter_early": [
+                    { t: "女々しくて", a: "ゴールデンボンバー" },
+                    { t: "にんじゃりばんばん", a: "きゃりーぱみゅぱみゅ" },
+                    { t: "Calling", a: "嵐" },
+                    { t: "チョコの奴隷", a: "SKE48" },
+                    { t: "So long !", a: "AKB48" },
+                    { t: "ミュージック", a: "サカナクション" },
+                    { t: "つけまつける", a: "きゃりーぱみゅぱみゅ" },
+                    { t: "ファッションモンスター", a: "きゃりーぱみゅぱみゅ" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+                "spring": [
+                    { t: "RPG", a: "SEKAI NO OWARI" },
+                    { t: "スターラブレイション", a: "ケラケラ" },
+                    { t: "紅蓮の弓矢", a: "Linked Horizon" },
+                    { t: "さよならクロール", a: "AKB48" },
+                    { t: "にんじゃりばんばん", a: "きゃりーぱみゅぱみゅ" },
+                    { t: "Believe", a: "西野カナ" },
+                    { t: "Endless Game", a: "嵐" },
+                    { t: "女々しくて", a: "ゴールデンボンバー" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "恋するフォーチュンクッキー", a: "AKB48" },
+                    { t: "潮騒のメモリー", a: "天野春子" },
+                    { t: "ピースとハイライト", a: "サザンオールスターズ" },
+                    { t: "ごめんなさいのKissing You", a: "E-girls" },
+                    { t: "高嶺の花子さん", a: "back number" },
+                    { t: "RPG", a: "SEKAI NO OWARI" },
+                    { t: "女々しくて", a: "ゴールデンボンバー" },
+                    { t: "ガールズルール", a: "乃木坂46" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "HANABI", a: "Mr.Children" }
+                ],
+                "autumn": [
+                    { t: "恋するフォーチュンクッキー", a: "AKB48" },
+                    { t: "潮騒のメモリー", a: "天野春子" },
+                    { t: "ごめんなさいのKissing You", a: "E-girls" },
+                    { t: "バレッタ", a: "乃木坂46" },
+                    { t: "EXILE PRIDE 〜こんな世界を愛するため〜", a: "EXILE" },
+                    { t: "ハート・エレキ", a: "AKB48" },
+                    { t: "高嶺の花子さん", a: "back number" },
+                    { t: "RPG", a: "SEKAI NO OWARI" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "奏(かなで)", a: "スキマスイッチ" }
+                ],
+                "winter_late": [
+                    { t: "恋するフォーチュンクッキー", a: "AKB48" },
+                    { t: "女々しくて", a: "ゴールデンボンバー" },
+                    { t: "鈴懸なんちゃら", a: "AKB48" },
+                    { t: "スノーマジックファンタジー", a: "SEKAI NO OWARI" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" },
+                    { t: "ごめんなさいのKissing You", a: "E-girls" },
+                    { t: "潮騒のメモリー", a: "天野春子" }
+                ],
+            },
+            "2012": {
+                "winter_early": [
+                    { t: "つけまつける", a: "きゃりーぱみゅぱみゅ" },
+                    { t: "ワイルド アット ハート", a: "嵐" },
+                    { t: "GIVE ME FIVE!", a: "AKB48" },
+                    { t: "女々しくて", a: "ゴールデンボンバー" },
+                    { t: "いつだって僕らは", a: "いきものがかり" },
+                    { t: "ミスター", a: "KARA" },
+                    { t: "ヘビーローテーション", a: "AKB48" },
+                    { t: "フライングゲット", a: "AKB48" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+                "spring": [
+                    { t: "真夏のSounds good !", a: "AKB48" },
+                    { t: "Face Down", a: "嵐" },
+                    { t: "祈り 〜涙の軌道", a: "Mr.Children" },
+                    { t: "ハルウタ", a: "いきものがかり" },
+                    { t: "猛烈宇宙交響曲・第七楽章「無限の愛」", a: "ももいろクローバーZ" },
+                    { t: "Shine", a: "家入レオ" },
+                    { t: "つけまつける", a: "きゃりーぱみゅぱみゅ" },
+                    { t: "ワイルド アット ハート", a: "嵐" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "風が吹いている", a: "いきものがかり" },
+                    { t: "チャンカパーナ", a: "NEWS" },
+                    { t: "花は咲く", a: "花は咲くプロジェクト" },
+                    { t: "ギンガムチェック", a: "AKB48" },
+                    { t: "Your Eyes", a: "嵐" },
+                    { t: "GO FOR IT !!", a: "西野カナ" },
+                    { t: "真夏のSounds good !", a: "AKB48" },
+                    { t: "女々しくて", a: "ゴールデンボンバー" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "HANABI", a: "Mr.Children" }
+                ],
+                "autumn": [
+                    { t: "ファッションモンスター", a: "きゃりーぱみゅぱみゅ" },
+                    { t: "サラバ、愛しき悲しみたちよ", a: "ももいろクローバーZ" },
+                    { t: "Follow Me", a: "E-Girls" },
+                    { t: "UZA", a: "AKB48" },
+                    { t: "風が吹いている", a: "いきものがかり" },
+                    { t: "チャンカパーナ", a: "NEWS" },
+                    { t: "花は咲く", a: "花は咲くプロジェクト" },
+                    { t: "女々しくて", a: "ゴールデンボンバー" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "奏(かなで)", a: "スキマスイッチ" }
+                ],
+                "winter_late": [
+                    { t: "ファッションモンスター", a: "きゃりーぱみゅぱみゅ" },
+                    { t: "サラバ、愛しき悲しみたちよ", a: "ももいろクローバーZ" },
+                    { t: "永遠プレッシャー", a: "AKB48" },
+                    { t: "女々しくて", a: "ゴールデンボンバー" },
+                    { t: "Follow Me", a: "E-Girls" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" },
+                    { t: "花は咲く", a: "花は咲くプロジェクト" }
+                ],
+            },
+            "2011": {
+                "winter_early": [
+                    { t: "トイレの神様", a: "植村花菜" },
+                    { t: "Lotus", a: "嵐" },
+                    { t: "桜の木になろう", a: "AKB48" },
+                    { t: "ヘビーローテーション", a: "AKB48" },
+                    { t: "Gee", a: "少女時代" },
+                    { t: "ミスター", a: "KARA" },
+                    { t: "レーザービーム", a: "Perfume" },
+                    { t: "マル・マル・モリ・モリ!", a: "薫と友樹、たまにムック。" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+                "spring": [
+                    { t: "Everyday、カチューシャ", a: "AKB48" },
+                    { t: "マル・マル・モリ・モリ!", a: "薫と友樹、たまにムック。" },
+                    { t: "MR.TAXI", a: "少女時代" },
+                    { t: "ジェットコースターラブ", a: "KARA" },
+                    { t: "レーザービーム", a: "Perfume" },
+                    { t: "少女飛行", a: "ぱすぽ☆" },
+                    { t: "桜の木になろう", a: "AKB48" },
+                    { t: "トイレの神様", a: "植村花菜" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "フライングゲット", a: "AKB48" },
+                    { t: "GO GO サマー!", a: "KARA" },
+                    { t: "マル・マル・モリ・モリ!", a: "薫と友樹、たまにムック。" },
+                    { t: "波乗りジョニー", a: "桑田佳祐" },
+                    { t: "Everyday、カチューシャ", a: "AKB48" },
+                    { t: "花火", a: "三代目 J Soul Brothers" },
+                    { t: "レーザービーム", a: "Perfume" },
+                    { t: "MR.TAXI", a: "少女時代" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "HANABI", a: "Mr.Children" }
+                ],
+                "autumn": [
+                    { t: "風は吹いている", a: "AKB48" },
+                    { t: "家族になろうよ", a: "福山雅治" },
+                    { t: "やさしくなりたい", a: "斉藤和義" },
+                    { t: "フライングゲット", a: "AKB48" },
+                    { t: "迷宮ラブソング", a: "嵐" },
+                    { t: "マル・マル・モリ・モリ!", a: "薫と友樹、たまにムック。" },
+                    { t: "GO GO サマー!", a: "KARA" },
+                    { t: "Gee", a: "少女時代" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "奏(かなで)", a: "スキマスイッチ" }
+                ],
+                "winter_late": [
+                    { t: "やさしくなりたい", a: "斉藤和義" },
+                    { t: "家族になろうよ", a: "福山雅治" },
+                    { t: "上からマリコ", a: "AKB48" },
+                    { t: "風は吹いている", a: "AKB48" },
+                    { t: "迷宮ラブソング", a: "嵐" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" },
+                    { t: "マル・マル・モリ・モリ!", a: "薫と友樹、たまにムック。" }
+                ],
+            },
+            "2010": {
+                "winter_early": [
+                    { t: "はつ恋", a: "福山雅治" },
+                    { t: "Troublemaker", a: "嵐" },
+                    { t: "Best Friend", a: "西野カナ" },
+                    { t: "桜", a: "FUNKY MONKEY BABYS" },
+                    { t: "戻れない明日", a: "aiko" },
+                    { t: "瞳の奥をのぞかせて", a: "ポルノグラフィティ" },
+                    { t: "Gee", a: "少女時代" },
+                    { t: "ミスター", a: "KARA" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+                "spring": [
+                    { t: "Monster", a: "嵐" },
+                    { t: "会いたくて 会いたくて", a: "西野カナ" },
+                    { t: "ポニーテールとシュシュ", a: "AKB48" },
+                    { t: "Ring a Ding Dong", a: "木村カエラ" },
+                    { t: "Troublemaker", a: "嵐" },
+                    { t: "Best Friend", a: "西野カナ" },
+                    { t: "VICTORY", a: "EXILE" },
+                    { t: "まなざし", a: "Honey L Days" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "ヘビーローテーション", a: "AKB48" },
+                    { t: "Love Rainbow", a: "嵐" },
+                    { t: "ミスター", a: "KARA" },
+                    { t: "GENIE", a: "少女時代" },
+                    { t: "To be free", a: "嵐" },
+                    { t: "if", a: "西野カナ" },
+                    { t: "ポニーテールとシュシュ", a: "AKB48" },
+                    { t: "Monster", a: "嵐" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "HANABI", a: "Mr.Children" }
+                ],
+                "autumn": [
+                    { t: "Beginner", a: "AKB48" },
+                    { t: "果てない空", a: "嵐" },
+                    { t: "Gee", a: "少女時代" },
+                    { t: "Dear J", a: "板野友美" },
+                    { t: "ヘビーローテーション", a: "AKB48" },
+                    { t: "ミスター", a: "KARA" },
+                    { t: "君って", a: "西野カナ" },
+                    { t: "GENIE", a: "少女時代" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "トイレの神様", a: "植村花菜" },
+                    { t: "果てない空", a: "嵐" },
+                    { t: "Beginner", a: "AKB48" },
+                    { t: "チャンスの順番", a: "AKB48" },
+                    { t: "Gee", a: "少女時代" },
+                    { t: "ヘビーローテーション", a: "AKB48" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" }
+                ],
+            },
+            "2009": {
+                "winter_early": [
+                    { t: "Believe", a: "嵐" },
+                    { t: "歩み", a: "GReeeeN" },
+                    { t: "Share The World", a: "東方神起" },
+                    { t: "Ti Amo", a: "EXILE" },
+                    { t: "ONE DROP", a: "KAT-TUN" },
+                    { t: "WAO!", a: "ユニコーン" },
+                    { t: "そばにいるね", a: "青山テルマ feat.SoulJa" },
+                    { t: "キセキ", a: "GReeeeN" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+                "spring": [
+                    { t: "明日がくるなら", a: "JUJU with JAY'ED" },
+                    { t: "遥か", a: "GReeeeN" },
+                    { t: "明日の記憶", a: "嵐" },
+                    { t: "Crazy Moon〜キミ・ハムテキ〜", a: "嵐" },
+                    { t: "ひまわり", a: "遊助" },
+                    { t: "My SunShine", a: "ROCK'A'TRENCH" },
+                    { t: "Believe", a: "嵐" },
+                    { t: "歩み", a: "GReeeeN" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "イチブトゼンブ", a: "B'z" },
+                    { t: "Everything", a: "嵐" },
+                    { t: "Butterfly", a: "木村カエラ" },
+                    { t: "たんぽぽ", a: "遊助" },
+                    { t: "ひまわり", a: "遊助" },
+                    { t: "Stand by U", a: "東方神起" },
+                    { t: "遥か", a: "GReeeeN" },
+                    { t: "明日がくるなら", a: "JUJU with JAY'ED" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "HANABI", a: "Mr.Children" }
+                ],
+                "autumn": [
+                    { t: "イチブトゼンブ", a: "B'z" },
+                    { t: "マイガール", a: "嵐" },
+                    { t: "急☆上☆Show!!", a: "関ジャニ∞" },
+                    { t: "RIVER", a: "AKB48" },
+                    { t: "ふたつの唇", a: "EXILE" },
+                    { t: "Butterfly", a: "木村カエラ" },
+                    { t: "深愛", a: "水樹奈々" },
+                    { t: "Everything", a: "嵐" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "奏(かなで)", a: "スキマスイッチ" }
+                ],
+                "winter_late": [
+                    { t: "ふたつの唇", a: "EXILE" },
+                    { t: "マイガール", a: "嵐" },
+                    { t: "イチブトゼンブ", a: "B'z" },
+                    { t: "はつ恋", a: "福山雅治" },
+                    { t: "Butterfly", a: "木村カエラ" },
+                    { t: "急☆上☆Show!!", a: "関ジャニ∞" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" }
+                ],
+            },
+            "2008": {
+                "winter_early": [
+                    { t: "そばにいるね", a: "青山テルマ feat.SoulJa" },
+                    { t: "Step and Go", a: "嵐" },
+                    { t: "蕾", a: "コブクロ" },
+                    { t: "太陽のナミダ", a: "NEWS" },
+                    { t: "LIPS", a: "KAT-TUN" },
+                    { t: "60s 70s 80s", a: "安室奈美恵" },
+                    { t: "Flavor Of Life", a: "宇多田ヒカル" },
+                    { t: "CHE.R.RY", a: "YUI" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+                "spring": [
+                    { t: "キセキ", a: "GReeeeN" },
+                    { t: "One Love", a: "嵐" },
+                    { t: "羞恥心", a: "羞恥心" },
+                    { t: "BURN -フメツノフェイス-", a: "B'z" },
+                    { t: "DON'T U EVER STOP", a: "KAT-TUN" },
+                    { t: "Prisoner Of Love", a: "宇多田ヒカル" },
+                    { t: "そばにいるね", a: "青山テルマ feat.SoulJa" },
+                    { t: "Step and Go", a: "嵐" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "崖の上のポニョ", a: "藤岡藤巻と大橋のぞみ" },
+                    { t: "HANABI", a: "Mr.Children" },
+                    { t: "truth", a: "嵐" },
+                    { t: "I AM YOUR SINGER", a: "サザンオールスターズ" },
+                    { t: "キセキ", a: "GReeeeN" },
+                    { t: "One Love", a: "嵐" },
+                    { t: "羞恥心", a: "羞恥心" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "ギフト", a: "ポルノグラフィティ" },
+                    { t: "青と夏", a: "Mrs. GREEN APPLE" }
+                ],
+                "autumn": [
+                    { t: "Ti Amo", a: "EXILE" },
+                    { t: "HANABI", a: "Mr.Children" },
+                    { t: "どうして君を好きになってしまったんだろう?", a: "東方神起" },
+                    { t: "GIFT", a: "Mr.Children" },
+                    { t: "虹", a: "Aqua Timez" },
+                    { t: "The Birthday 〜Ti Amo〜", a: "EXILE" },
+                    { t: "truth", a: "嵐" },
+                    { t: "キセキ", a: "GReeeeN" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "Ti Amo", a: "EXILE" },
+                    { t: "HANABI", a: "Mr.Children" },
+                    { t: "崖の上のポニョ", a: "藤岡藤巻と大橋のぞみ" },
+                    { t: "Beautiful days", a: "嵐" },
+                    { t: "ラスト・スノー", a: "松田聖子" },
+                    { t: "キセキ", a: "GReeeeN" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" }
+                ],
+            },
+            "2007": {
+                "winter_early": [
+                    { t: "千の風になって", a: "秋川雅史" },
+                    { t: "Flavor Of Life", a: "宇多田ヒカル" },
+                    { t: "Love so sweet", a: "嵐" },
+                    { t: "蕾", a: "コブクロ" },
+                    { t: "CHE.R.RY", a: "YUI" },
+                    { t: "しるし", a: "Mr.Children" },
+                    { t: "Lovers Again", a: "EXILE" },
+                    { t: "青春アミーゴ", a: "修二と彰" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+                "spring": [
+                    { t: "蕾", a: "コブクロ" },
+                    { t: "明日晴れるかな", a: "桑田佳祐" },
+                    { t: "We can make it!", a: "嵐" },
+                    { t: "CHE.R.RY", a: "YUI" },
+                    { t: "Flavor Of Life", a: "宇多田ヒカル" },
+                    { t: "Love so sweet", a: "嵐" },
+                    { t: "千の風になって", a: "秋川雅史" },
+                    { t: "花の名", a: "BUMP OF CHICKEN" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "PEACH", a: "大塚愛" },
+                    { t: "Jewelry day", a: "絢香" },
+                    { t: "風の詩を聴かせて", a: "桑田佳祐" },
+                    { t: "Happiness", a: "嵐" },
+                    { t: "LOVE & TRUTH", a: "YUI" },
+                    { t: "明日晴れるかな", a: "桑田佳祐" },
+                    { t: "蕾", a: "コブクロ" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "純恋歌", a: "湘南乃風" },
+                    { t: "睡蓮花", a: "湘南乃風" }
+                ],
+                "autumn": [
+                    { t: "花の名", a: "BUMP OF CHICKEN" },
+                    { t: "メーデー", a: "BUMP OF CHICKEN" },
+                    { t: "旅立ちの唄", a: "Mr.Children" },
+                    { t: "LOVE & TRUTH", a: "YUI" },
+                    { t: "Beautiful World", a: "宇多田ヒカル" },
+                    { t: "蒼く 優しく", a: "コブクロ" },
+                    { t: "ダーリン", a: "桑田佳祐" },
+                    { t: "Happiness", a: "嵐" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "旅立ちの唄", a: "Mr.Children" },
+                    { t: "ダーリン", a: "桑田佳祐" },
+                    { t: "花の名", a: "BUMP OF CHICKEN" },
+                    { t: "Lovers Again", a: "EXILE" },
+                    { t: "千の風になって", a: "秋川雅史" },
+                    { t: "Flavor Of Life", a: "宇多田ヒカル" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" }
+                ],
+            },
+            "2006": {
+                "winter_early": [
+                    { t: "青春アミーゴ", a: "修二と彰" },
+                    { t: "Real Face", a: "KAT-TUN" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "桜", a: "コブクロ" },
+                    { t: "Venus", a: "タッキー&翼" },
+                    { t: "衝動", a: "B'z" },
+                    { t: "I believe", a: "絢香" },
+                    { t: "プラネタリウム", a: "大塚愛" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "メリクリ", a: "BoA" }
+                ],
+                "spring": [
+                    { t: "Real Face", a: "KAT-TUN" },
+                    { t: "純恋歌", a: "湘南乃風" },
+                    { t: "ボクノート", a: "スキマスイッチ" },
+                    { t: "抱いてセニョリータ", a: "山下智久" },
+                    { t: "桜", a: "コブクロ" },
+                    { t: "I believe", a: "絢香" },
+                    { t: "Dear WOMAN", a: "SMAP" },
+                    { t: "きっと大丈夫", a: "嵐" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "タイヨウのうた", a: "Kaoru Amane" },
+                    { t: "純恋歌", a: "湘南乃風" },
+                    { t: "SIGNAL", a: "KAT-TUN" },
+                    { t: "三日月", a: "絢香" },
+                    { t: "ユメクイ", a: "大塚愛" },
+                    { t: "SPLASH!", a: "B'z" },
+                    { t: "アオゾラペダル", a: "嵐" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "全力少年", a: "スキマスイッチ" },
+                    { t: "楽園ベイベー", a: "RIP SLYME" }
+                ],
+                "autumn": [
+                    { t: "しるし", a: "Mr.Children" },
+                    { t: "三日月", a: "絢香" },
+                    { t: "風見鶏", a: "コブクロ" },
+                    { t: "涙のふるさと", a: "BUMP OF CHICKEN" },
+                    { t: "タイヨウのうた", a: "Kaoru Amane" },
+                    { t: "太陽の下", a: "レミオロメン" },
+                    { t: "純恋歌", a: "湘南乃風" },
+                    { t: "ありがとう", a: "SMAP" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "しるし", a: "Mr.Children" },
+                    { t: "三日月", a: "絢香" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "青春アミーゴ", a: "修二と彰" },
+                    { t: "僕らの街で", a: "KAT-TUN" },
+                    { t: "桜", a: "コブクロ" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" },
+                    { t: "奏(かなで)", a: "スキマスイッチ" }
+                ],
+            },
+            "2005": {
+                "winter_early": [
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "NO MORE CRY", a: "D-51" },
+                    { t: "ツバサ", a: "アンダーグラフ" },
+                    { t: "ファンタスティポ", a: "トラジ・ハイジ" },
+                    { t: "Anniversary", a: "KinKi Kids" },
+                    { t: "花", a: "ORANGE RANGE" },
+                    { t: "瞳をとじて", a: "平井堅" },
+                    { t: "Jupiter", a: "平原綾香" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "メリクリ", a: "BoA" }
+                ],
+                "spring": [
+                    { t: "さくら", a: "ケツメイシ" },
+                    { t: "ツバサ", a: "アンダーグラフ" },
+                    { t: "NO MORE CRY", a: "D-51" },
+                    { t: "STEP you", a: "浜崎あゆみ" },
+                    { t: "全力少年", a: "スキマスイッチ" },
+                    { t: "サクラ咲ケ", a: "嵐" },
+                    { t: "ビロードの闇", a: "KinKi Kids" },
+                    { t: "恋のマイアヒ", a: "O-Zone" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "恋のマイアヒ", a: "O-Zone" },
+                    { t: "OCEAN", a: "B'z" },
+                    { t: "全力少年", a: "スキマスイッチ" },
+                    { t: "ハネウマライダー", a: "ポルノグラフィティ" },
+                    { t: "キズナ", a: "ORANGE RANGE" },
+                    { t: "花火", a: "大塚愛" },
+                    { t: "BANG! BANG! バカンス!", a: "SMAP" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "さくら", a: "ケツメイシ" },
+                    { t: "ロコローション", a: "ORANGE RANGE" }
+                ],
+                "autumn": [
+                    { t: "プラネタリウム", a: "大塚愛" },
+                    { t: "青春アミーゴ", a: "修二と彰" },
+                    { t: "GLAMOROUS SKY", a: "NANA starring MIKA NAKASHIMA" },
+                    { t: "POP STAR", a: "平井堅" },
+                    { t: "キズナ", a: "ORANGE RANGE" },
+                    { t: "桜", a: "コブクロ" },
+                    { t: "恋のマイアヒ", a: "O-Zone" },
+                    { t: "全力少年", a: "スキマスイッチ" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "青春アミーゴ", a: "修二と彰" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "GLAMOROUS SKY", a: "NANA starring MIKA NAKASHIMA" },
+                    { t: "プラネタリウム", a: "大塚愛" },
+                    { t: "桜", a: "コブクロ" },
+                    { t: "Snowdome", a: "木村カエラ" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" },
+                    { t: "奏(かなで)", a: "スキマスイッチ" }
+                ],
+            },
+            "2004": {
+                "winter_early": [
+                    { t: "Jupiter", a: "平原綾香" },
+                    { t: "瞳をとじて", a: "平井堅" },
+                    { t: "誰かの願いが叶うころ", a: "宇多田ヒカル" },
+                    { t: "彩 〜Aja〜", a: "サザンオールスターズ" },
+                    { t: "One Day,One Dream", a: "タッキー&翼" },
+                    { t: "ね、がんばるよ。", a: "KinKi Kids" },
+                    { t: "世界に一つだけの花", a: "SMAP" },
+                    { t: "さくら(独唱)", a: "森山直太朗" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "メリクリ", a: "BoA" }
+                ],
+                "spring": [
+                    { t: "瞳をとじて", a: "平井堅" },
+                    { t: "Sign", a: "Mr.Children" },
+                    { t: "ロコローション", a: "ORANGE RANGE" },
+                    { t: "誰かの願いが叶うころ", a: "宇多田ヒカル" },
+                    { t: "Jupiter", a: "平原綾香" },
+                    { t: "彩 〜Aja〜", a: "サザンオールスターズ" },
+                    { t: "かたち あるもの", a: "柴咲コウ" },
+                    { t: "PIECES OF A DREAM", a: "CHEMISTRY" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "ロコローション", a: "ORANGE RANGE" },
+                    { t: "君こそスターだ", a: "サザンオールスターズ" },
+                    { t: "かたち あるもの", a: "柴咲コウ" },
+                    { t: "瞳をとじて", a: "平井堅" },
+                    { t: "ARIGATO", a: "B'z" },
+                    { t: "Inspire", a: "浜崎あゆみ" },
+                    { t: "シスター", a: "ポルノグラフィティ" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "Sign", a: "Mr.Children" },
+                    { t: "楽園ベイベー", a: "RIP SLYME" }
+                ],
+                "autumn": [
+                    { t: "花", a: "ORANGE RANGE" },
+                    { t: "かたち あるもの", a: "柴咲コウ" },
+                    { t: "チェスト", a: "ORANGE RANGE" },
+                    { t: "瞳をとじて", a: "平井堅" },
+                    { t: "思いがかさなるその前に…", a: "平井堅" },
+                    { t: "Sign", a: "Mr.Children" },
+                    { t: "君こそスターだ", a: "サザンオールスターズ" },
+                    { t: "やさしいキスをして", a: "DREAMS COME TRUE" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "花", a: "ORANGE RANGE" },
+                    { t: "かたち あるもの", a: "柴咲コウ" },
+                    { t: "君に逢いたくて", a: "Gackt" },
+                    { t: "Jupiter", a: "平原綾香" },
+                    { t: "瞳をとじて", a: "平井堅" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" },
+                    { t: "奏(かなで)", a: "スキマスイッチ" }
+                ],
+            },
+            "2003": {
+                "winter_early": [
+                    { t: "世界に一つだけの花", a: "SMAP" },
+                    { t: "月のしずく", a: "RUI" },
+                    { t: "明日への扉", a: "I WiSH" },
+                    { t: "さくら(独唱)", a: "森山直太朗" },
+                    { t: "COLORS", a: "宇多田ヒカル" },
+                    { t: "永遠のBLOODS", a: "KinKi Kids" },
+                    { t: "Life goes on", a: "Dragon Ash" },
+                    { t: "大きな古時計", a: "平井堅" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "粉雪", a: "レミオロメン" }
+                ],
+                "spring": [
+                    { t: "世界に一つだけの花", a: "SMAP" },
+                    { t: "さくら(独唱)", a: "森山直太朗" },
+                    { t: "明日への扉", a: "I WiSH" },
+                    { t: "月のしずく", a: "RUI" },
+                    { t: "IT'S SHOWTIME!!", a: "B'z" },
+                    { t: "Grip!", a: "Every Little Thing" },
+                    { t: "COLORS", a: "宇多田ヒカル" },
+                    { t: "虹", a: "福山雅治" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "SAKURAドロップス", a: "宇多田ヒカル" }
+                ],
+                "summer": [
+                    { t: "涙の海で抱かれたい", a: "サザンオールスターズ" },
+                    { t: "虹", a: "福山雅治" },
+                    { t: "ひまわり", a: "福山雅治" },
+                    { t: "forgiveness", a: "浜崎あゆみ" },
+                    { t: "世界に一つだけの花", a: "SMAP" },
+                    { t: "野性のENERGY", a: "B'z" },
+                    { t: "風のららら", a: "倉木麻衣" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "波乗りジョニー", a: "桑田佳祐" },
+                    { t: "楽園ベイベー", a: "RIP SLYME" }
+                ],
+                "autumn": [
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "メリッサ", a: "ポルノグラフィティ" },
+                    { t: "虹", a: "福山雅治" },
+                    { t: "掌", a: "Mr.Children" },
+                    { t: "くるみ", a: "Mr.Children" },
+                    { t: "Choo Choo TRAIN", a: "EXILE" },
+                    { t: "世界に一つだけの花", a: "SMAP" },
+                    { t: "涙の海で抱かれたい", a: "サザンオールスターズ" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "Choo Choo TRAIN", a: "EXILE" },
+                    { t: "世界に一つだけの花", a: "SMAP" },
+                    { t: "くるみ", a: "Mr.Children" },
+                    { t: "掌", a: "Mr.Children" },
+                    { t: "メリッサ", a: "ポルノグラフィティ" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "白い恋人達", a: "桑田佳祐" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "奏(かなで)", a: "スキマスイッチ" }
+                ],
+            },
+            "2002": {
+                "winter_early": [
+                    { t: "Life goes on", a: "Dragon Ash" },
+                    { t: "ワダツミの木", a: "元ちとせ" },
+                    { t: "光", a: "宇多田ヒカル" },
+                    { t: "Daybreak", a: "浜崎あゆみ" },
+                    { t: "Way of Difference", a: "GLAY" },
+                    { t: "feel well", a: "Do As Infinity" },
+                    { t: "Can You Keep A Secret?", a: "宇多田ヒカル" },
+                    { t: "PIECES OF A DREAM", a: "CHEMISTRY" },
+                    { t: "白い恋人達", a: "桑田佳祐" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+                "spring": [
+                    { t: "SAKURAドロップス", a: "宇多田ヒカル" },
+                    { t: "ワダツミの木", a: "元ちとせ" },
+                    { t: "東京", a: "桑田佳祐" },
+                    { t: "カナシミ ブルー", a: "KinKi Kids" },
+                    { t: "Free&Easy", a: "浜崎あゆみ" },
+                    { t: "光", a: "宇多田ヒカル" },
+                    { t: "Life goes on", a: "Dragon Ash" },
+                    { t: "大きな古時計", a: "平井堅" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "大きな古時計", a: "平井堅" },
+                    { t: "楽園ベイベー", a: "RIP SLYME" },
+                    { t: "H", a: "浜崎あゆみ" },
+                    { t: "熱き鼓動の果て", a: "B'z" },
+                    { t: "眠れぬ夜は君のせい", a: "MISIA" },
+                    { t: "東京", a: "桑田佳祐" },
+                    { t: "ワダツミの木", a: "元ちとせ" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "波乗りジョニー", a: "桑田佳祐" },
+                    { t: "secret base 〜君がくれたもの〜", a: "ZONE" }
+                ],
+                "autumn": [
+                    { t: "Voyage", a: "浜崎あゆみ" },
+                    { t: "大きな古時計", a: "平井堅" },
+                    { t: "眠れぬ夜は君のせい", a: "MISIA" },
+                    { t: "Ring", a: "平井堅" },
+                    { t: "solitude 〜真実のサヨナラ〜", a: "KinKi Kids" },
+                    { t: "楽園ベイベー", a: "RIP SLYME" },
+                    { t: "SAKURAドロップス", a: "宇多田ヒカル" },
+                    { t: "H", a: "浜崎あゆみ" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "Voyage", a: "浜崎あゆみ" },
+                    { t: "My Gift to You", a: "CHEMISTRY" },
+                    { t: "白い恋人達", a: "桑田佳祐" },
+                    { t: "大きな古時計", a: "平井堅" },
+                    { t: "Ding Dong", a: "TOKIO" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "Life goes on", a: "Dragon Ash" },
+                    { t: "ワダツミの木", a: "元ちとせ" }
+                ],
+            },
+            "2001": {
+                "winter_early": [
+                    { t: "Can You Keep A Secret?", a: "宇多田ヒカル" },
+                    { t: "PIECES OF A DREAM", a: "CHEMISTRY" },
+                    { t: "evolution", a: "浜崎あゆみ" },
+                    { t: "ボクの背中には羽根がある", a: "KinKi Kids" },
+                    { t: "NEVER EVER", a: "浜崎あゆみ" },
+                    { t: "Fragile", a: "Every Little Thing" },
+                    { t: "M", a: "浜崎あゆみ" },
+                    { t: "Everything", a: "MISIA" },
+                    { t: "TSUNAMI", a: "サザンオールスターズ" },
+                    { t: "桜坂", a: "福山雅治" }
+                ],
+                "spring": [
+                    { t: "明日があるさ", a: "Re:Japan" },
+                    { t: "PIECES OF A DREAM", a: "CHEMISTRY" },
+                    { t: "Point of No Return", a: "CHEMISTRY" },
+                    { t: "Endless sorrow", a: "浜崎あゆみ" },
+                    { t: "KISS OF LIFE", a: "平井堅" },
+                    { t: "GLOBAL COMMUNICATION", a: "GLAY" },
+                    { t: "Can You Keep A Secret?", a: "宇多田ヒカル" },
+                    { t: "情熱", a: "KinKi Kids" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "波乗りジョニー", a: "桑田佳祐" },
+                    { t: "secret base 〜君がくれたもの〜", a: "ZONE" },
+                    { t: "UNITE!", a: "浜崎あゆみ" },
+                    { t: "You Go Your Way", a: "CHEMISTRY" },
+                    { t: "Lifetime Respect", a: "三木道三" },
+                    { t: "Point of No Return", a: "CHEMISTRY" },
+                    { t: "明日があるさ", a: "Re:Japan" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "PIECES OF A DREAM", a: "CHEMISTRY" },
+                    { t: "HOTEL PACIFIC", a: "サザンオールスターズ" }
+                ],
+                "autumn": [
+                    { t: "白い恋人達", a: "桑田佳祐" },
+                    { t: "Dearest", a: "浜崎あゆみ" },
+                    { t: "You Go Your Way", a: "CHEMISTRY" },
+                    { t: "波乗りジョニー", a: "桑田佳祐" },
+                    { t: "Stand Up", a: "倉木麻衣" },
+                    { t: "優しい歌", a: "Mr.Children" },
+                    { t: "secret base 〜君がくれたもの〜", a: "ZONE" },
+                    { t: "Lifetime Respect", a: "三木道三" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "白い恋人達", a: "桑田佳祐" },
+                    { t: "traveling", a: "宇多田ヒカル" },
+                    { t: "Mr.Moonlight 〜愛のビッグバンド〜", a: "モーニング娘。" },
+                    { t: "Dearest", a: "浜崎あゆみ" },
+                    { t: "winter fall", a: "L'Arc〜en〜Ciel" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "You Go Your Way", a: "CHEMISTRY" },
+                    { t: "PIECES OF A DREAM", a: "CHEMISTRY" }
+                ],
+            },
+            "2000": {
+                "winter_early": [
+                    { t: "TSUNAMI", a: "サザンオールスターズ" },
+                    { t: "桜坂", a: "福山雅治" },
+                    { t: "LOVEマシーン", a: "モーニング娘。" },
+                    { t: "恋のダンスサイト", a: "モーニング娘。" },
+                    { t: "Wait & See 〜リスク〜", a: "宇多田ヒカル" },
+                    { t: "ちょこっとLOVE", a: "プッチモニ" },
+                    { t: "今夜月の見える丘に", a: "B'z" },
+                    { t: "Fly high", a: "浜崎あゆみ" },
+                    { t: "SEASONS", a: "浜崎あゆみ" },
+                    { t: "雪の華", a: "中島美嘉" }
+                ],
+                "spring": [
+                    { t: "桜坂", a: "福山雅治" },
+                    { t: "TSUNAMI", a: "サザンオールスターズ" },
+                    { t: "SEASONS", a: "浜崎あゆみ" },
+                    { t: "ギブス", a: "椎名林檎" },
+                    { t: "罪と罰", a: "椎名林檎" },
+                    { t: "May", a: "B'z" },
+                    { t: "ハッピーサマーウェディング", a: "モーニング娘。" },
+                    { t: "Wait & See 〜リスク〜", a: "宇多田ヒカル" },
+                    { t: "春よ、来い", a: "松任谷由実" },
+                    { t: "さくら(独唱)", a: "森山直太朗" }
+                ],
+                "summer": [
+                    { t: "らいおんハート", a: "SMAP" },
+                    { t: "SEASONS", a: "浜崎あゆみ" },
+                    { t: "Secret of my heart", a: "倉木麻衣" },
+                    { t: "サウダージ", a: "ポルノグラフィティ" },
+                    { t: "HOTEL PACIFIC", a: "サザンオールスターズ" },
+                    { t: "夏の王様", a: "KinKi Kids" },
+                    { t: "ジュリアナ Tokyo", a: "TRF" },
+                    { t: "夏色", a: "ゆず" },
+                    { t: "TSUNAMI", a: "サザンオールスターズ" },
+                    { t: "桜坂", a: "福山雅治" }
+                ],
+                "autumn": [
+                    { t: "Everything", a: "MISIA" },
+                    { t: "サウダージ", a: "ポルノグラフィティ" },
+                    { t: "らいおんハート", a: "SMAP" },
+                    { t: "SURREAL", a: "浜崎あゆみ" },
+                    { t: "ring", a: "B'z" },
+                    { t: "I'M GETTING BLUE", a: "ZIGGY" },
+                    { t: "Secret of my heart", a: "倉木麻衣" },
+                    { t: "HOTEL PACIFIC", a: "サザンオールスターズ" },
+                    { t: "茜色の約束", a: "いきものがかり" },
+                    { t: "楓", a: "スピッツ" }
+                ],
+                "winter_late": [
+                    { t: "Everything", a: "MISIA" },
+                    { t: "M", a: "浜崎あゆみ" },
+                    { t: "あなたのキスを数えましょう", a: "小柳ゆき" },
+                    { t: "サウダージ", a: "ポルノグラフィティ" },
+                    { t: "らいおんハート", a: "SMAP" },
+                    { t: "白い恋人達", a: "桑田佳祐" },
+                    { t: "雪の華", a: "中島美嘉" },
+                    { t: "メリクリ", a: "BoA" },
+                    { t: "粉雪", a: "レミオロメン" },
+                    { t: "TSUNAMI", a: "サザンオールスターズ" }
+                ],
+            },
+        };
+
+        
+        /**
+         * 年（2000〜2026年）と月（1〜12月）からリアルな月間TOP10を取得
+         */
+        function getDynamicMonthlyHits(yearStr, monthNum) {
+            const y = String(yearStr || "2026");
+            const m = parseInt(monthNum, 10) || 1;
+            
+            // 年の取得（2000〜2026に対応、範囲外は直近へ）
+            const yearData = MONTHLY_CHART_DATABASE[y] || MONTHLY_CHART_DATABASE["2024"];
+            
+            // 月に応じた期間の判定
+            let periodKey = "winter_early";
+            if (m === 1 || m === 2) periodKey = "winter_early";
+            else if (m >= 3 && m <= 5) periodKey = "spring";
+            else if (m >= 6 && m <= 8) periodKey = "summer";
+            else if (m >= 9 && m <= 11) periodKey = "autumn";
+            else if (m === 12) periodKey = "winter_late";
+
+            const baseList = yearData[periodKey] || yearData["spring"] || [];
+            
+            // 月ごとに微妙に順位を変動させてリアリティを付与
+            const shift = (m - 1) % 3;
+            let list = [...baseList];
+            if (shift > 0 && list.length > shift) {
+                const head = list.slice(shift);
+                const tail = list.slice(0, shift);
+                list = head.concat(tail);
+            }
+
+            return list.slice(0, 10).map((item, idx) => ({
+                rank: idx + 1,
+                track: item.t,
+                artist: item.a
+            }));
+        }
+
+
+        // ==========================================
+        // 2. アプリケーション状態変数
+        // ==========================================
+        let rawStreamingData = {};       // 日別再生曲TOP5配列 { 'YYYY-MM-DD': [ { track, artist, ms, rank, source } ] }
+        let manualTracksData = {};       // 手動追加曲 { 'YYYY-MM-DD': [ { track, artist, previewUrl, source: 'manual' } ] }
+        let deletedTracksData = {};      // 削除した曲 { 'YYYY-MM-DD': [ 'artist__SPLIT__track' ] }
+        let hiddenSettings = { hiddenSongs: [], hiddenPeriods: [] };
+        
+        let photoDatabase = {};          // 写真ファイル配列 { 'YYYY-MM-DD': [File, ...] }
+        let activeDatesList = [];        // 現在のナビゲーション対象日リスト
+        let navMode = 'photos';          // 'photos' または 'all'
+        let currentIndex = 0;
+        let activeTrackIndex = 0;
+        let isStreamingReady = false;
+        let isPhotosReady = false;
+        let slideShowInterval = null;
+        let slidePhotoIndex = 0;
+        let activePlaybackRequestId = 0;
+
+        // ==========================================
+        // 3. ユーティリティ
+        // ==========================================
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function cleanSongTitle(title) {
+            if (!title) return '';
+            return title
+                .replace(/\s*[\(\[\{（［【].*?[\)\]\}）］】]/g, '')
+                .replace(/\s*-\s*(remaster(ed)?|version|ver|mix|live|instrumental|edit|bonus|single|radio|original|acoustic).*$/i, '')
+                .replace(/[〜～].*?[〜～]/g, '')
+                .trim();
+        }
+
+        function normalizeStr(s) {
+            if (!s) return '';
+            return String(s).toLowerCase().replace(/[\s\-_・,，、。\(\)\[\]「」『』/]/g, '');
+        }
+
+        function isDateHidden(dateStr) {
+            return hiddenSettings.hiddenPeriods.some(p => dateStr >= p.start && dateStr <= p.end);
+        }
+
+        function isSongHidden(track, artist) {
+            const key = `${artist}__SPLIT__${track}`;
+            return hiddenSettings.hiddenSongs.includes(key);
+        }
+
+        // ==========================================
+        // 4. 初期化・ストレージ復元
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const savedStreaming = await localforage.getItem('saved_streaming_history');
+                const savedManual = await localforage.getItem('saved_manual_tracks');
+                const savedDeleted = await localforage.getItem('saved_deleted_tracks');
+                const savedHidden = await localforage.getItem('saved_hidden_settings');
+
+                if (savedStreaming) rawStreamingData = savedStreaming;
+                if (savedManual) manualTracksData = savedManual;
+                if (savedDeleted) deletedTracksData = savedDeleted;
+                if (savedHidden) hiddenSettings = savedHidden;
+
+                Object.keys(rawStreamingData).forEach(d => {
+                    if (!Array.isArray(rawStreamingData[d])) {
+                        rawStreamingData[d] = [rawStreamingData[d]];
+                    }
+                });
+
+                const streamingDayCount = Object.keys(rawStreamingData).length;
+                if (streamingDayCount > 0) {
+                    markStreamingAsReady(`✓ 前回保存した履歴を復元しました（${streamingDayCount}日分）`);
+                }
+            } catch (err) {
+                console.error("復元エラー:", err);
+            }
+        });
+
+        function markStreamingAsReady(message) {
+            document.getElementById('streaming-input-area').classList.add('hidden');
+            const statusArea = document.getElementById('streaming-status-area');
+            statusArea.classList.remove('hidden');
+            document.getElementById('streaming-status').innerText = message;
+            
+            isStreamingReady = true;
+            checkReadyState();
+        }
+
+        document.getElementById('replace-file-btn').addEventListener('click', () => {
+            document.getElementById('streaming-status-area').classList.add('hidden');
+            document.getElementById('streaming-input-area').classList.remove('hidden');
+            document.getElementById('streaming-file').value = '';
+        });
+
+        document.getElementById('reset-all-btn').addEventListener('click', async () => {
+            if (confirm("【初期化】保存されているすべての履歴と手動追加曲をリセットしますか？")) {
+                try {
+                    await localforage.clear();
+                } catch (e) {}
+                location.reload();
+            }
+        });
+
+        // ==========================================
+        // 5. サブスク履歴ファイルの解析 (TOP5曲抽出)
+        // ==========================================
+        document.getElementById('streaming-file').addEventListener('change', async function(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            const loadingEl = document.getElementById('streaming-loading');
+            loadingEl.classList.remove('hidden');
+
+            let parsedHistoryItems = [];
+            let filesProcessed = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const fileName = file.name.toLowerCase();
+
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    const content = evt.target.result;
+                    if (fileName.endsWith('.json')) {
+                        try {
+                            const data = JSON.parse(content);
+                            if (Array.isArray(data)) {
+                                parsedHistoryItems = parsedHistoryItems.concat(parseSpotifyItems(data));
+                            }
+                        } catch (err) {}
+                    } else if (fileName.endsWith('.csv')) {
+                        try {
+                            const items = parseAppleMusicCSV(content);
+                            parsedHistoryItems = parsedHistoryItems.concat(items);
+                        } catch (err) {}
+                    }
+
+                    filesProcessed++;
+                    if (filesProcessed === files.length) {
+                        loadingEl.classList.add('hidden');
+                        finalizeStreamingHistory(parsedHistoryItems);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        function parseSpotifyItems(data) {
+            const items = [];
+            data.forEach(item => {
+                const timeString = item.endTime || item.ts;
+                const track = item.trackName || item.master_metadata_track_name;
+                const artist = item.artistName || item.master_metadata_album_artist_name;
+                const ms = item.msPlayed || item.ms_played || 0;
+
+                if (!timeString || !track || !artist || ms < 5000) return;
+
+                const dateStr = extractDateString(timeString);
+                if (dateStr) {
+                    items.push({ date: dateStr, track: track.trim(), artist: artist.trim(), ms });
+                }
+            });
+            return items;
+        }
+
+        function parseAppleMusicCSV(csvText) {
+            const items = [];
+            const rows = parseCSVToRows(csvText);
+            if (rows.length < 2) return items;
+
+            const header = rows[0].map(h => h.trim().toLowerCase());
+            const timeCol = header.findIndex(h => h.includes('timestamp') || h.includes('date') || h.includes('time'));
+            const trackCol = header.findIndex(h => h.includes('song description') || h.includes('track description') || h.includes('title') || h.includes('song'));
+            const artistCol = header.findIndex(h => h.includes('artist'));
+            const msCol = header.findIndex(h => h.includes('play duration') || h.includes('duration') || h.includes('ms'));
+
+            if (timeCol === -1 || trackCol === -1 || artistCol === -1) return items;
+
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                if (row.length <= Math.max(timeCol, trackCol, artistCol)) continue;
+
+                const timeRaw = row[timeCol];
+                const track = row[trackCol];
+                const artist = row[artistCol];
+                let ms = msCol !== -1 ? parseInt(row[msCol], 10) : 30000;
+                if (isNaN(ms)) ms = 30000;
+
+                if (!timeRaw || !track || !artist || ms < 5000) continue;
+
+                const dateStr = extractDateString(timeRaw);
+                if (dateStr) {
+                    items.push({ date: dateStr, track: track.trim(), artist: artist.trim(), ms });
+                }
+            }
+            return items;
+        }
+
+        function parseCSVToRows(text) {
+            const lines = [];
+            let row = [""];
+            let inQuotes = false;
+
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i];
+                const next = text[i + 1];
+
+                if (c === '"') {
+                    if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; }
+                    else { inQuotes = !inQuotes; }
+                } else if (c === ',' && !inQuotes) {
+                    row.push("");
+                } else if ((c === '\r' || c === '\n') && !inQuotes) {
+                    if (c === '\r' && next === '\n') i++;
+                    lines.push(row);
+                    row = [""];
+                } else {
+                    row[row.length - 1] += c;
+                }
+            }
+            if (row.length > 1 || row[0] !== "") lines.push(row);
+            return lines;
+        }
+
+        function extractDateString(timeString) {
+            try {
+                let d;
+                if (timeString.includes('Z') || timeString.includes('T')) {
+                    d = new Date(timeString);
+                } else {
+                    d = new Date(timeString.replace(' ', 'T') + 'Z');
+                }
+                if (isNaN(d.getTime())) {
+                    const match = String(timeString).match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
+                    if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+                    return null;
+                }
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function finalizeStreamingHistory(items) {
+            if (!items || items.length === 0) {
+                alert("有効な音楽再生記録が見つかりませんでした。");
+                return;
+            }
+
+            const dailyScores = {};
+            items.forEach(item => {
+                const date = item.date;
+                if (!dailyScores[date]) dailyScores[date] = {};
+                const songKey = `${item.artist}__SPLIT__${item.track}`;
+                dailyScores[date][songKey] = (dailyScores[date][songKey] || 0) + item.ms;
+            });
+
+            rawStreamingData = {};
+            Object.keys(dailyScores).forEach(date => {
+                const sorted = Object.entries(dailyScores[date])
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5);
+
+                rawStreamingData[date] = sorted.map(([key, ms], idx) => {
+                    const [artist, track] = key.split('__SPLIT__');
+                    return { track, artist, ms, rank: idx + 1, source: 'streaming', previewUrl: null };
+                });
+            });
+
+            const dayCount = Object.keys(rawStreamingData).length;
+            localforage.setItem('saved_streaming_history', rawStreamingData)
+                .then(() => markStreamingAsReady(`✓ 履歴を解析・保存しました（${dayCount}日分）`))
+                .catch(() => markStreamingAsReady(`✓ 履歴を解析しました（${dayCount}日分）`));
+        }
+
+        // ==========================================
+        // 6. 写真の解析 (完全ファイルスキャンExif)
+        // ==========================================
+        document.getElementById('photo-files').addEventListener('change', async function(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            const loadingEl = document.getElementById('photo-loading');
+            const statusEl = document.getElementById('photo-status');
+            const previewSection = document.getElementById('photo-summary-preview');
+            const previewTags = document.getElementById('photo-summary-tags');
+            
+            loadingEl.classList.remove('hidden');
+            loadingEl.innerText = `写真の日時を解析中... (0/${files.length}枚)`;
+            statusEl.classList.add('hidden');
+            previewSection.classList.add('hidden');
+            previewTags.innerHTML = '';
+            
+            photoDatabase = {}; 
+            let processedCount = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const dateKey = await extractDateFromPhoto(file);
+                
+                if (!photoDatabase[dateKey]) photoDatabase[dateKey] = [];
+                photoDatabase[dateKey].push(file);
+
+                processedCount++;
+                if (processedCount % 5 === 0 || processedCount === files.length) {
+                    loadingEl.innerText = `写真の日時を解析中... (${processedCount}/${files.length}枚)`;
+                }
+            }
+
+            loadingEl.classList.add('hidden');
+            statusEl.classList.remove('hidden');
+            
+            const totalStocked = Object.values(photoDatabase).reduce((sum, arr) => sum + arr.length, 0);
+            const dateList = Object.keys(photoDatabase).sort((a, b) => new Date(b) - new Date(a));
+            statusEl.innerText = `✓ ${totalStocked}枚の写真をストックしました (${dateList.length}日分)`;
+
+            dateList.forEach(d => {
+                const tag = document.createElement('span');
+                tag.className = 'bg-pink-100 text-pink-700 px-2 py-0.5 rounded text-[10px] font-bold';
+                tag.innerText = `${d} (${photoDatabase[d].length}枚)`;
+                previewTags.appendChild(tag);
+            });
+            previewSection.classList.remove('hidden');
+            
+            isPhotosReady = true;
+            checkReadyState();
+        });
+
+        function extractDateFromPhoto(file) {
+            return new Promise((resolve) => {
+                // 1. ファイル名から日付検索 (IMG_20260815_..., 2026-08-15..., 20230815...)
+                const fn = file.name || "";
+                const fnMatch = fn.match(/(?:IMG_|Screenshot_|Photo_|P_)?(20[0-2][0-9])[-_]?([0-1][0-9])[-_]?([0-3][0-9])/i);
+                if (fnMatch) {
+                    const y = fnMatch[1];
+                    const m = fnMatch[2];
+                    const d = fnMatch[3];
+                    if (parseInt(m, 10) >= 1 && parseInt(m, 10) <= 12 && parseInt(d, 10) >= 1 && parseInt(d, 10) <= 31) {
+                        return resolve(`${y}-${m}-${d}`);
+                    }
+                }
+
+                function fallback() {
+                    const d = file.lastModified ? new Date(file.lastModified) : new Date();
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    resolve(`${y}-${m}-${day}`);
+                }
+
+                // 2. バイナリExifスキャン (256KBスキャン)
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const buffer = e.target.result;
+                        const view = new DataView(buffer);
+                        const len = view.byteLength;
+
+                        for (let i = 0; i < Math.min(len - 4, 262144); i++) {
+                            if (view.getUint8(i) === 0xFF && view.getUint8(i + 1) === 0xE1) {
+                                if (view.getUint32(i + 4, false) === 0x45786966) { // "Exif"
+                                    const tiffOffset = i + 10;
+                                    const bigEndian = view.getUint16(tiffOffset, false) === 0x4D4D;
+                                    const ifd0 = view.getUint32(tiffOffset + 4, bigEndian) + tiffOffset;
+                                    const dateStr = parseIFDDate(view, ifd0, tiffOffset, bigEndian);
+                                    if (dateStr) {
+                                        const match = dateStr.match(/^(\d{4})[:\/\-](\d{2})[:\/\-](\d{2})/);
+                                        if (match) return resolve(`${match[1]}-${match[2]}-${match[3]}`);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (err) {}
+                    fallback();
+                };
+                reader.onerror = fallback;
+                reader.readAsArrayBuffer(file.slice(0, 262144));
+            });
+        }
+
+        function parseIFDDate(view, ifdOffset, tiffOffset, bigEndian) {
+            try {
+                const entries = view.getUint16(ifdOffset, bigEndian);
+                let exifSubIFDOffset = 0;
+                let dateStr = "";
+
+                for (let i = 0; i < entries; i++) {
+                    const entryOffset = ifdOffset + 2 + i * 12;
+                    const tag = view.getUint16(entryOffset, bigEndian);
+                    if (tag === 0x8769) {
+                        exifSubIFDOffset = view.getUint32(entryOffset + 8, bigEndian) + tiffOffset;
+                    } else if (tag === 0x0132) {
+                        dateStr = readASCIIString(view, entryOffset, tiffOffset, bigEndian);
+                    }
+                }
+
+                if (exifSubIFDOffset > 0) {
+                    const subEntries = view.getUint16(exifSubIFDOffset, bigEndian);
+                    for (let j = 0; j < subEntries; j++) {
+                        const entryOffset = exifSubIFDOffset + 2 + j * 12;
+                        const tag = view.getUint16(entryOffset, bigEndian);
+                        if (tag === 0x9003 || tag === 0x9004) {
+                            const subDate = readASCIIString(view, entryOffset, tiffOffset, bigEndian);
+                            if (subDate) return subDate;
+                        }
+                    }
+                }
+                return dateStr;
+            } catch (e) {
+                return "";
+            }
+        }
+
+        function readASCIIString(view, entryOffset, tiffOffset, bigEndian) {
+            try {
+                const count = view.getUint32(entryOffset + 4, bigEndian);
+                const valOffset = view.getUint32(entryOffset + 8, bigEndian) + tiffOffset;
+                let str = "";
+                for (let i = 0; i < count; i++) {
+                    const code = view.getUint8(valOffset + i);
+                    if (code === 0) break;
+                    str += String.fromCharCode(code);
+                }
+                return str;
+            } catch (e) {
+                return "";
+            }
+        }
+
+        // ==========================================
+        // 7. アプリ起動とナビゲーション
+        // ==========================================
+        function checkReadyState() {
+            const btn = document.getElementById('start-btn');
+            if (isStreamingReady || isPhotosReady) {
+                btn.disabled = false;
+                btn.innerText = "思い出を振り返る ✨";
+                btn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
+                btn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-700', 'active:scale-95', 'shadow-md', 'cursor-pointer');
+            }
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            const photoDates = Object.keys(photoDatabase).filter(d => !isDateHidden(d));
+            
+            if (photoDates.length > 0) {
+                setNavMode('photos');
+            } else {
+                setNavMode('all');
+            }
+
+            if (activeDatesList.length === 0) {
+                alert("表示できる日付データがありません。");
+                return;
+            }
+
+            document.getElementById('setup-section').classList.add('hidden');
+            document.getElementById('player-section').classList.remove('hidden');
+            
+            currentIndex = activeDatesList.length - 1;
+            loadDay(currentIndex);
+        });
+
+        const modePhotosBtn = document.getElementById('mode-photos-only-btn');
+        const modeAllBtn = document.getElementById('mode-all-dates-btn');
+
+        modePhotosBtn.addEventListener('click', () => setNavMode('photos', true));
+        modeAllBtn.addEventListener('click', () => setNavMode('all', true));
+
+        function setNavMode(mode, refresh = false) {
+            navMode = mode;
+            if (mode === 'photos') {
+                modePhotosBtn.className = "px-2.5 py-1 rounded-md bg-white text-blue-600 shadow-xs transition";
+                modeAllBtn.className = "px-2.5 py-1 rounded-md text-gray-600 hover:text-gray-900 transition";
+            } else {
+                modeAllBtn.className = "px-2.5 py-1 rounded-md bg-white text-blue-600 shadow-xs transition";
+                modePhotosBtn.className = "px-2.5 py-1 rounded-md text-gray-600 hover:text-gray-900 transition";
+            }
+
+            const curDate = activeDatesList[currentIndex];
+            rebuildActiveDatesList();
+
+            if (refresh && activeDatesList.length > 0) {
+                let idx = curDate ? activeDatesList.indexOf(curDate) : -1;
+                if (idx === -1) idx = Math.max(0, activeDatesList.length - 1);
+                loadDay(idx);
+            }
+        }
+
+        function rebuildActiveDatesList() {
+            const photoDates = Object.keys(photoDatabase).filter(d => !isDateHidden(d));
+            
+            if (navMode === 'photos' && photoDates.length > 0) {
+                activeDatesList = photoDates.sort((a, b) => new Date(a) - new Date(b));
+            } else {
+                const dateSet = new Set();
+                Object.keys(rawStreamingData).forEach(d => dateSet.add(d));
+                Object.keys(photoDatabase).forEach(d => dateSet.add(d));
+                Object.keys(manualTracksData).forEach(d => dateSet.add(d));
+
+                activeDatesList = Array.from(dateSet)
+                    .filter(d => !isDateHidden(d))
+                    .sort((a, b) => new Date(a) - new Date(b));
+            }
+        }
+
+        function getTracksForDate(dateStr) {
+            const tracks = [];
+            const deleted = deletedTracksData[dateStr] || [];
+
+            // 1. サブスク自動TOP5曲
+            if (rawStreamingData[dateStr]) {
+                const list = Array.isArray(rawStreamingData[dateStr]) ? rawStreamingData[dateStr] : [rawStreamingData[dateStr]];
+                list.forEach((t, idx) => {
+                    const key = `${t.artist}__SPLIT__${t.track}`;
+                    if (!deleted.includes(key) && !isSongHidden(t.track, t.artist)) {
+                        tracks.push({ ...t, rank: idx + 1, source: 'streaming' });
+                    }
+                });
+            }
+
+            // 2. 手動追加曲
+            if (manualTracksData[dateStr]) {
+                manualTracksData[dateStr].forEach(t => {
+                    const key = `${t.artist}__SPLIT__${t.track}`;
+                    if (!deleted.includes(key) && !isSongHidden(t.track, t.artist)) {
+                        tracks.push({ ...t, source: 'manual' });
+                    }
+                });
+            }
+
+            return tracks.slice(0, 5);
+        }
+
+        // ==========================================
+        // 8. 日付のロードと表示
+        // ==========================================
+        function loadDay(index) {
+            if (index < 0 || index >= activeDatesList.length) return;
+            currentIndex = index;
+
+            const dateStr = activeDatesList[index];
+            const [y, m, d] = dateStr.split('-');
+            document.getElementById('current-date-display').innerText = `${y}年${parseInt(m)}月${parseInt(d)}日`;
+            document.getElementById('nav-date-index').innerText = `${index + 1} / ${activeDatesList.length}日`;
+            
+            document.getElementById('prev-btn').disabled = (index === 0);
+            document.getElementById('next-btn').disabled = (index === activeDatesList.length - 1);
+
+            const photos = photoDatabase[dateStr] || [];
+            document.getElementById('photo-count-badge').innerText = `📸 写真: ${photos.length}枚`;
+
+            displayPhotosForDate(dateStr);
+
+            const tracks = getTracksForDate(dateStr);
+            const hitsBanner = document.getElementById('hit-songs-suggest-banner');
+            const hitsBannerTitle = document.getElementById('hit-songs-banner-title');
+
+            if (tracks.length === 0) {
+                hitsBanner.classList.remove('hidden');
+                hitsBannerTitle.innerText = `当時(${y}年${parseInt(m)}月)の月間TOP10`;
+                
+                document.getElementById('track-name').innerText = '曲が未登録です';
+                document.getElementById('artist-name').innerText = '下のボタンから思い出の曲を追加してください';
+                document.getElementById('track-source-label').innerText = '🎵 楽曲未選択';
+                document.getElementById('audio-player').src = '';
+                document.getElementById('playing-badge').classList.add('hidden');
+                renderPlaylistUI();
+            } else {
+                hitsBanner.classList.add('hidden');
+                playTrack(0);
+            }
+        }
+
+        // ==========================================
+        // 9. iTunes API 公式音源マッチング
+        // ==========================================
+        async function fetchExactPreviewUrl(targetTrack, targetArtist) {
+            const cleanT = cleanSongTitle(targetTrack);
+            const queries = [
+                `${cleanT} ${targetArtist}`.trim(),
+                `${targetTrack} ${targetArtist}`.trim(),
+                cleanT
+            ];
+
+            const normTargetArtist = normalizeStr(targetArtist);
+            const normTargetTrack = normalizeStr(cleanT);
+
+            for (const q of queries) {
+                if (!q) continue;
+                try {
+                    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&country=JP&limit=30`;
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    if (!data.results || data.results.length === 0) continue;
+
+                    let bestMatch = null;
+                    let highestScore = -999;
+
+                    data.results.forEach(song => {
+                        if (!song.previewUrl) return;
+
+                        const fullTitle = (song.trackName + ' ' + (song.collectionName || '')).toLowerCase();
+                        const noiseWords = ['cover', 'piano', 'オルゴール', 'tribute', 'karaoke', 'bgm', 'acoustic cover', 'インスト'];
+                        const isNoise = noiseWords.some(w => fullTitle.includes(w));
+                        if (isNoise && !targetTrack.toLowerCase().includes('cover')) return;
+
+                        const sArtist = normalizeStr(song.artistName);
+                        const sTrack = normalizeStr(cleanSongTitle(song.trackName));
+
+                        let score = 0;
+                        if (sArtist === normTargetArtist || sArtist.includes(normTargetArtist) || normTargetArtist.includes(sArtist)) {
+                            score += 100;
+                        } else {
+                            return;
+                        }
+
+                        if (sTrack === normTargetTrack || sTrack.includes(normTargetTrack) || normTargetTrack.includes(sTrack)) {
+                            score += 100;
+                        } else {
+                            return;
+                        }
+
+                        if (score > highestScore) {
+                            highestScore = score;
+                            bestMatch = song;
+                        }
+                    });
+
+                    if (bestMatch && highestScore >= 180) {
+                        return bestMatch.previewUrl;
+                    }
+                } catch (e) {}
+            }
+            return null;
+        }
+
+        async function playTrack(tIndex) {
+            activeTrackIndex = tIndex;
+            const dateStr = activeDatesList[currentIndex];
+            const tracks = getTracksForDate(dateStr);
+            
+            if (!tracks || !tracks[tIndex]) return;
+            const trackObj = tracks[tIndex];
+
+            const rankBadges = ['🥇 1位', '🥈 2位', '🥉 3位', '4位', '5位'];
+            const rankLabel = trackObj.source === 'streaming' && trackObj.rank ? `🎵 その日${rankBadges[trackObj.rank - 1]}の曲` : '🔍 追加した思い出の曲';
+
+            document.getElementById('track-name').innerText = trackObj.track;
+            document.getElementById('artist-name').innerText = trackObj.artist;
+            document.getElementById('track-source-label').innerText = rankLabel;
+            
+            renderPlaylistUI();
+
+            const audioPlayer = document.getElementById('audio-player');
+            const audioStatus = document.getElementById('audio-status');
+            const audioSearching = document.getElementById('audio-searching');
+            const playingBadge = document.getElementById('playing-badge');
+
+            audioPlayer.pause();
+            audioPlayer.src = "";
+            audioStatus.classList.add('hidden');
+            audioSearching.classList.add('hidden');
+            playingBadge.classList.add('hidden');
+
+            const requestId = ++activePlaybackRequestId;
+
+            if (trackObj.previewUrl) {
+                audioPlayer.src = trackObj.previewUrl;
+                audioPlayer.play().catch(() => {});
+            } else {
+                audioSearching.classList.remove('hidden');
+                try {
+                    const previewUrl = await fetchExactPreviewUrl(trackObj.track, trackObj.artist);
+                    if (requestId !== activePlaybackRequestId) return;
+
+                    audioSearching.classList.add('hidden');
+                    if (previewUrl) {
+                        trackObj.previewUrl = previewUrl;
+                        audioPlayer.src = previewUrl;
+                        audioPlayer.play().catch(() => {});
+                    } else {
+                        audioStatus.classList.remove('hidden');
+                    }
+                } catch (e) {
+                    if (requestId === activePlaybackRequestId) {
+                        audioSearching.classList.add('hidden');
+                        audioStatus.classList.remove('hidden');
+                    }
+                }
+            }
+        }
+
+        const audioPlayerEl = document.getElementById('audio-player');
+        audioPlayerEl.addEventListener('play', () => document.getElementById('playing-badge').classList.remove('hidden'));
+        audioPlayerEl.addEventListener('pause', () => document.getElementById('playing-badge').classList.add('hidden'));
+        audioPlayerEl.addEventListener('ended', () => {
+            document.getElementById('playing-badge').classList.add('hidden');
+            const dateStr = activeDatesList[currentIndex];
+            const tracks = getTracksForDate(dateStr);
+            if (tracks && activeTrackIndex < tracks.length - 1) {
+                playTrack(activeTrackIndex + 1);
+            }
+        });
+
+        // ==========================================
+        // 10. プレイリストUI
+        // ==========================================
+        function renderPlaylistUI() {
+            const dateStr = activeDatesList[currentIndex];
+            const tracks = getTracksForDate(dateStr);
+            const container = document.getElementById('playlist-container');
+            container.innerHTML = '';
+
+            document.getElementById('playlist-count').innerText = `${tracks.length}/5曲`;
+
+            if (tracks.length === 0) {
+                container.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">この日の曲はありません</p>';
+            }
+
+            tracks.forEach((trackObj, i) => {
+                const isPlaying = (i === activeTrackIndex);
+                const rankBadges = ['🥇 1位', '🥈 2位', '🥉 3位', '4位', '5位'];
+                const rankText = trackObj.source === 'streaming' && trackObj.rank ? rankBadges[trackObj.rank - 1] : '追加曲';
+                
+                const itemDiv = document.createElement('div');
+                itemDiv.className = `playlist-item border rounded-xl p-2.5 flex items-center justify-between cursor-pointer ${isPlaying ? 'playing shadow-xs' : 'bg-white hover:bg-gray-50'}`;
+
+                itemDiv.innerHTML = `
+                    <div class="flex items-center overflow-hidden flex-1 mr-2 track-click-area">
+                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded mr-2 flex-shrink-0 ${trackObj.source === 'streaming' ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'}">
+                            ${rankText}
+                        </span>
+                        <div class="truncate">
+                            <p class="text-xs font-bold text-gray-800 truncate">${escapeHtml(trackObj.track)}</p>
+                            <p class="text-[10px] text-gray-500 truncate">${escapeHtml(trackObj.artist)}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        ${isPlaying ? '<span class="text-blue-500 text-[10px] font-bold animate-pulse">再生中</span>' : '<button class="play-btn text-xs text-blue-600 hover:underline px-1">▶</button>'}
+                        <button title="削除" class="delete-song-btn text-gray-400 hover:text-red-500 p-1 rounded-md text-xs hover:bg-red-50 transition">
+                            🗑️
+                        </button>
+                    </div>
+                `;
+
+                itemDiv.querySelector('.track-click-area').addEventListener('click', () => playTrack(i));
+                const playBtn = itemDiv.querySelector('.play-btn');
+                if (playBtn) playBtn.addEventListener('click', () => playTrack(i));
+                
+                itemDiv.querySelector('.delete-song-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (confirm(`「${trackObj.track}」を削除しますか？`)) {
+                        deleteTrackFromDay(dateStr, trackObj);
+                    }
+                });
+
+                container.appendChild(itemDiv);
+            });
+
+            const openSearchBtn = document.getElementById('open-search-btn');
+            const openHitsBtn = document.getElementById('open-hits-btn');
+            if (tracks.length >= 5) {
+                openSearchBtn.classList.add('opacity-40', 'pointer-events-none');
+                openHitsBtn.classList.add('opacity-40', 'pointer-events-none');
+            } else {
+                openSearchBtn.classList.remove('opacity-40', 'pointer-events-none');
+                openHitsBtn.classList.remove('opacity-40', 'pointer-events-none');
+            }
+        }
+
+        async function deleteTrackFromDay(dateStr, trackObj) {
+            const songKey = `${trackObj.artist}__SPLIT__${trackObj.track}`;
+            if (!deletedTracksData[dateStr]) deletedTracksData[dateStr] = [];
+            if (!deletedTracksData[dateStr].includes(songKey)) {
+                deletedTracksData[dateStr].push(songKey);
+            }
+
+            if (manualTracksData[dateStr]) {
+                manualTracksData[dateStr] = manualTracksData[dateStr].filter(t => !(t.track === trackObj.track && t.artist === trackObj.artist));
+            }
+
+            await localforage.setItem('saved_deleted_tracks', deletedTracksData);
+            await localforage.setItem('saved_manual_tracks', manualTracksData);
+
+            loadDay(currentIndex);
+        }
+
+        async function addSongToCurrentDay(trackName, artistName, previewUrl) {
+            const dateStr = activeDatesList[currentIndex];
+            const tracks = getTracksForDate(dateStr);
+
+            if (tracks.length >= 5) {
+                alert("1日に追加できる曲は最大5曲までです。");
+                return;
+            }
+
+            if (!manualTracksData[dateStr]) manualTracksData[dateStr] = [];
+            manualTracksData[dateStr].push({
+                track: trackName,
+                artist: artistName,
+                previewUrl: previewUrl,
+                source: 'manual'
+            });
+
+            if (deletedTracksData[dateStr]) {
+                const key = `${artistName}__SPLIT__${trackName}`;
+                deletedTracksData[dateStr] = deletedTracksData[dateStr].filter(k => k !== key);
+                await localforage.setItem('saved_deleted_tracks', deletedTracksData);
+            }
+
+            await localforage.setItem('saved_manual_tracks', manualTracksData);
+            
+            loadDay(currentIndex);
+            const updatedTracks = getTracksForDate(dateStr);
+            playTrack(updatedTracks.length - 1);
+        }
+
+        // ==========================================
+        // 11. 曲名手動検索
+        // ==========================================
+        const searchModal = document.getElementById('search-modal');
+        const searchInput = document.getElementById('search-input');
+        const searchResults = document.getElementById('search-results');
+
+        document.getElementById('open-search-btn').addEventListener('click', () => {
+            searchModal.classList.remove('hidden');
+            searchInput.value = '';
+            searchResults.innerHTML = '<p class="text-center text-gray-400 text-xs mt-10">追加したい曲を検索してください。<br>※最大5曲まで追加可能です。</p>';
+            setTimeout(() => searchInput.focus(), 100);
+        });
+
+        document.getElementById('close-search-btn').addEventListener('click', () => searchModal.classList.add('hidden'));
+        searchModal.addEventListener('click', (e) => { if (e.target === searchModal) searchModal.classList.add('hidden'); });
+
+        document.getElementById('execute-search-btn').addEventListener('click', async () => {
+            const term = searchInput.value.trim();
+            if (!term) return;
+
+            const loadingEl = document.getElementById('search-loading');
+            loadingEl.classList.remove('hidden');
+            searchResults.innerHTML = '';
+
+            try {
+                const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&entity=song&country=JP&limit=30`;
+                const res = await fetch(url);
+                const data = await res.json();
+                loadingEl.classList.add('hidden');
+
+                if (data.results && data.results.length > 0) {
+                    const valid = data.results.filter(s => s.previewUrl);
+                    valid.forEach(song => {
+                        const item = document.createElement('div');
+                        item.className = 'bg-white p-2.5 rounded-lg border flex items-center justify-between hover:bg-blue-50/50 transition';
+                        item.innerHTML = `
+                            <div class="flex items-center overflow-hidden flex-1 mr-2">
+                                <img src="${escapeHtml(song.artworkUrl60 || '')}" class="w-9 h-9 rounded mr-2.5 object-cover bg-gray-200" alt="art" onerror="this.style.display='none'">
+                                <div class="truncate">
+                                    <p class="text-xs font-bold text-gray-900 truncate">${escapeHtml(song.trackName)}</p>
+                                    <p class="text-[11px] text-gray-500 truncate">${escapeHtml(song.artistName)}</p>
+                                </div>
+                            </div>
+                            <button class="bg-blue-100 text-blue-600 font-bold px-2.5 py-1 rounded-full text-xs hover:bg-blue-200 active:scale-95 transition whitespace-nowrap">
+                                + 追加
+                            </button>
+                        `;
+                        item.querySelector('button').addEventListener('click', () => {
+                            addSongToCurrentDay(song.trackName, song.artistName, song.previewUrl);
+                            searchModal.classList.add('hidden');
+                        });
+                        searchResults.appendChild(item);
+                    });
+                } else {
+                    searchResults.innerHTML = '<p class="text-center text-xs text-gray-500 mt-8">曲が見つかりませんでした。</p>';
+                }
+            } catch (err) {
+                loadingEl.classList.add('hidden');
+                searchResults.innerHTML = '<p class="text-center text-xs text-red-500 mt-8">検索エラーが発生しました。</p>';
+            }
+        });
+
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('execute-search-btn').click(); }
+        });
+
+        // ==========================================
+        // 12. 月間ヒット曲TOP10 モーダル (2026年〜2000年 完全対応 & 即時プレビュー試聴)
+        // ==========================================
+        const hitsModal = document.getElementById('hits-modal');
+        const hitsYearSelect = document.getElementById('hits-year-select');
+        const hitsMonthSelect = document.getElementById('hits-month-select');
+        let modalPreviewAudio = new Audio();
+        let currentModalPlayingIndex = -1;
+
+        // 2026年から2000年までの全27年分を完全生成
+        hitsYearSelect.innerHTML = '';
+        for (let y = 2026; y >= 2000; y--) {
+            const opt = document.createElement('option');
+            opt.value = String(y);
+            opt.innerText = `${y}年`;
+            hitsYearSelect.appendChild(opt);
+        }
+
+        // 1月〜12月
+        hitsMonthSelect.innerHTML = '';
+        for (let m = 1; m <= 12; m++) {
+            const opt = document.createElement('option');
+            opt.value = String(m);
+            opt.innerText = `${m}月`;
+            hitsMonthSelect.appendChild(opt);
+        }
+
+        // 年・月を変更した瞬間に即座にリストを更新する（スマホ操作でも即座に反映）
+        hitsYearSelect.addEventListener('change', () => {
+            stopModalPreview();
+            renderMonthlyHitsList(hitsYearSelect.value, hitsMonthSelect.value);
+        });
+        hitsMonthSelect.addEventListener('change', () => {
+            stopModalPreview();
+            renderMonthlyHitsList(hitsYearSelect.value, hitsMonthSelect.value);
+        });
+
+        function stopModalPreview() {
+            if (modalPreviewAudio) {
+                modalPreviewAudio.pause();
+                modalPreviewAudio.src = '';
+            }
+            currentModalPlayingIndex = -1;
+            document.querySelectorAll('.hit-preview-btn').forEach(b => {
+                b.innerHTML = '▶ 試聴';
+                b.classList.remove('bg-amber-600', 'text-white');
+                b.classList.add('bg-gray-100', 'text-gray-700');
+            });
+        }
+
+        modalPreviewAudio.addEventListener('ended', stopModalPreview);
+
+        function openMonthlyHitsModal() {
+            stopModalPreview();
+            const dateStr = activeDatesList[currentIndex] || "2026-08-01";
+            const [year, month] = dateStr.split('-');
+            
+            const curY = parseInt(year, 10) || 2026;
+            const validY = (curY >= 2000 && curY <= 2026) ? String(curY) : "2026";
+            hitsYearSelect.value = validY;
+            hitsMonthSelect.value = String(parseInt(month, 10) || 8);
+
+            renderMonthlyHitsList(hitsYearSelect.value, hitsMonthSelect.value);
+            hitsModal.classList.remove('hidden');
+        }
+
+        document.getElementById('open-hits-btn').addEventListener('click', openMonthlyHitsModal);
+        document.getElementById('open-hits-from-banner-btn').addEventListener('click', openMonthlyHitsModal);
+        document.getElementById('close-hits-modal-btn').addEventListener('click', () => {
+            stopModalPreview();
+            hitsModal.classList.add('hidden');
+        });
+        hitsModal.addEventListener('click', (e) => { 
+            if (e.target === hitsModal) {
+                stopModalPreview();
+                hitsModal.classList.add('hidden'); 
+            }
+        });
+
+        document.getElementById('hits-refresh-btn').addEventListener('click', () => {
+            stopModalPreview();
+            renderMonthlyHitsList(hitsYearSelect.value, hitsMonthSelect.value);
+        });
+
+        function renderMonthlyHitsList(year, month) {
+            document.getElementById('hits-modal-title').innerText = `${year}年${month}月のヒット曲TOP10`;
+            const listEl = document.getElementById('hits-song-list');
+            listEl.innerHTML = '';
+
+            const songs = getDynamicMonthlyHits(year, month);
+            
+            songs.forEach((song, idx) => {
+                const item = document.createElement('div');
+                item.className = 'bg-white p-3 rounded-xl border border-amber-200/60 flex items-center justify-between shadow-xs hover:border-amber-400 hover:shadow-sm transition';
+                
+                // メダルアイコン色分け
+                let badgeClass = 'bg-gray-100 text-gray-700 font-bold';
+                let medalText = `${idx + 1}`;
+                if (idx === 0) { badgeClass = 'bg-amber-400 text-white font-black shadow-xs'; medalText = '🥇 1'; }
+                else if (idx === 1) { badgeClass = 'bg-slate-300 text-slate-800 font-black'; medalText = '🥈 2'; }
+                else if (idx === 2) { badgeClass = 'bg-amber-700 text-white font-black'; medalText = '🥉 3'; }
+
+                item.innerHTML = `
+                    <div class="flex items-center overflow-hidden flex-1 mr-2">
+                        <span class="px-2 py-0.5 rounded-full ${badgeClass} text-[10px] flex items-center justify-center mr-2.5 flex-shrink-0">
+                            ${medalText}
+                        </span>
+                        <div class="truncate">
+                            <p class="text-xs font-bold text-gray-900 truncate">${escapeHtml(song.track)}</p>
+                            <p class="text-[10px] text-gray-500 truncate">${escapeHtml(song.artist)}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-1.5 flex-shrink-0">
+                        <button class="hit-preview-btn bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-1 rounded-lg text-[11px] transition active:scale-95 whitespace-nowrap">
+                            ▶ 試聴
+                        </button>
+                        <button class="add-hit-song-btn bg-amber-500 hover:bg-amber-600 text-white font-bold px-2.5 py-1 rounded-lg text-xs transition active:scale-95 whitespace-nowrap shadow-xs">
+                            + 追加
+                        </button>
+                    </div>
+                `;
+
+                // プレビュー試聴ボタン
+                const prevBtn = item.querySelector('.hit-preview-btn');
+                prevBtn.addEventListener('click', async () => {
+                    if (currentModalPlayingIndex === idx && !modalPreviewAudio.paused) {
+                        stopModalPreview();
+                        return;
+                    }
+
+                    stopModalPreview();
+                    prevBtn.innerText = '⌛...';
+                    prevBtn.disabled = true;
+
+                    try {
+                        const previewUrl = await fetchExactPreviewUrl(song.track, song.artist);
+                        prevBtn.disabled = false;
+                        if (previewUrl) {
+                            modalPreviewAudio.src = previewUrl;
+                            modalPreviewAudio.play();
+                            currentModalPlayingIndex = idx;
+                            prevBtn.innerHTML = '⏸ 停止';
+                            prevBtn.classList.remove('bg-gray-100', 'text-gray-700');
+                            prevBtn.classList.add('bg-amber-600', 'text-white');
+                        } else {
+                            prevBtn.innerText = '✕ 音源なし';
+                            setTimeout(() => { prevBtn.innerText = '▶ 試聴'; }, 2000);
+                        }
+                    } catch (err) {
+                        prevBtn.disabled = false;
+                        prevBtn.innerText = '▶ 試聴';
+                    }
+                });
+
+                // 追加ボタン
+                item.querySelector('.add-hit-song-btn').addEventListener('click', async () => {
+                    const btn = item.querySelector('.add-hit-song-btn');
+                    btn.innerText = '照合中...';
+                    btn.disabled = true;
+
+                    const previewUrl = await fetchExactPreviewUrl(song.track, song.artist);
+                    await addSongToCurrentDay(song.track, song.artist, previewUrl);
+                    stopModalPreview();
+                    hitsModal.classList.add('hidden');
+                });
+
+                listEl.appendChild(item);
+            });
+        }
+
+        // ==========================================
+        // 13. カレンダー
+        // ==========================================
+        const dateModal = document.getElementById('date-modal');
+        const calendarInput = document.getElementById('calendar-input');
+
+        document.getElementById('date-picker-btn').addEventListener('click', () => {
+            const currentDateStr = activeDatesList[currentIndex];
+            calendarInput.value = currentDateStr || '';
+            renderPhotoDatesList();
+            dateModal.classList.remove('hidden');
+        });
+
+        document.getElementById('close-date-modal-btn').addEventListener('click', () => dateModal.classList.add('hidden'));
+        dateModal.addEventListener('click', (e) => { if (e.target === dateModal) dateModal.classList.add('hidden'); });
+
+        document.getElementById('jump-to-date-btn').addEventListener('click', () => {
+            const selectedDate = calendarInput.value;
+            if (!selectedDate) return;
+            jumpToDate(selectedDate);
+            dateModal.classList.add('hidden');
+        });
+
+        function jumpToDate(dateStr) {
+            let idx = activeDatesList.indexOf(dateStr);
+            if (idx === -1) {
+                if (!isDateHidden(dateStr)) {
+                    activeDatesList.push(dateStr);
+                    activeDatesList.sort((a, b) => new Date(a) - new Date(b));
+                    idx = activeDatesList.indexOf(dateStr);
+                } else {
+                    alert("指定した日付は非表示期間に含まれています。");
+                    return;
+                }
+            }
+            loadDay(idx);
+        }
+
+        function renderPhotoDatesList() {
+            const listEl = document.getElementById('photo-dates-list');
+            listEl.innerHTML = '';
+
+            const photoDates = Object.keys(photoDatabase).sort((a, b) => new Date(b) - new Date(a));
+            if (photoDates.length === 0) {
+                listEl.innerHTML = '<p class="text-[11px] text-gray-400">ストックされた写真はありません</p>';
+                return;
+            }
+
+            photoDates.forEach(d => {
+                const count = photoDatabase[d].length;
+                const btn = document.createElement('button');
+                btn.className = 'w-full text-left p-1.5 rounded-lg hover:bg-blue-50 text-gray-700 flex justify-between items-center transition';
+                btn.innerHTML = `
+                    <span>${d}</span>
+                    <span class="text-[10px] bg-pink-100 text-pink-600 px-1.5 py-0.5 rounded-full font-bold">${count}枚</span>
+                `;
+                btn.onclick = () => {
+                    jumpToDate(d);
+                    dateModal.classList.add('hidden');
+                };
+                listEl.appendChild(btn);
+            });
+        }
+
+        // ==========================================
+        // 14. 設定 モーダル
+        // ==========================================
+        const settingsModal = document.getElementById('settings-modal');
+
+        document.getElementById('open-settings-btn').addEventListener('click', () => {
+            settingsModal.classList.remove('hidden');
+        });
+
+        document.getElementById('close-settings-modal-btn').addEventListener('click', () => settingsModal.classList.add('hidden'));
+        settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
+
+        document.getElementById('add-hidden-period-btn').addEventListener('click', async () => {
+            const start = document.getElementById('hide-start-date').value;
+            const end = document.getElementById('hide-end-date').value;
+            if (!start || !end || start > end) {
+                alert("正しい期間を指定してください。");
+                return;
+            }
+
+            hiddenSettings.hiddenPeriods.push({ start, end });
+            await localforage.setItem('saved_hidden_settings', hiddenSettings);
+            
+            document.getElementById('hide-start-date').value = '';
+            document.getElementById('hide-end-date').value = '';
+            rebuildActiveDatesList();
+            alert("非表示期間を追加しました。");
+        });
+
+        // ==========================================
+        // 15. 写真表示 & スライドショー
+        // ==========================================
+        function displayPhotosForDate(dateString) {
+            const mainImg = document.getElementById('photo-main-layer');
+            const blurImg = document.getElementById('photo-blur-layer');
+            const emptyLayer = document.getElementById('photo-empty-layer');
+            const indicator = document.getElementById('slide-indicator');
+            
+            if (slideShowInterval) {
+                clearInterval(slideShowInterval);
+                slideShowInterval = null;
+            }
+
+            indicator.innerHTML = '';
+            indicator.classList.add('hidden');
+
+            const photos = photoDatabase[dateString];
+
+            if (photos && photos.length > 0) {
+                emptyLayer.classList.add('hidden');
+                mainImg.classList.remove('hidden');
+                blurImg.classList.remove('hidden');
+
+                slidePhotoIndex = 0;
+                showSlidePhoto(photos, 0);
+
+                if (photos.length > 1) {
+                    indicator.classList.remove('hidden');
+                    renderSlideDots(photos.length, 0);
+
+                    slideShowInterval = setInterval(() => {
+                        slidePhotoIndex = (slidePhotoIndex + 1) % photos.length;
+                        showSlidePhoto(photos, slidePhotoIndex);
+                        renderSlideDots(photos.length, slidePhotoIndex);
+                    }, 4000);
+                }
+            } else {
+                mainImg.classList.add('hidden');
+                blurImg.classList.add('hidden');
+                emptyLayer.classList.remove('hidden');
+            }
+        }
+
+        function showSlidePhoto(photos, idx) {
+            const file = photos[idx];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const src = e.target.result;
+                const mainImg = document.getElementById('photo-main-layer');
+                const blurImg = document.getElementById('photo-blur-layer');
+                mainImg.src = src;
+                blurImg.src = src;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function renderSlideDots(total, current) {
+            const indicator = document.getElementById('slide-indicator');
+            indicator.innerHTML = '';
+            const maxDots = Math.min(total, 10);
+            for (let i = 0; i < maxDots; i++) {
+                const dot = document.createElement('span');
+                dot.className = (i === current)
+                    ? 'inline-block w-3 h-1.5 rounded-full bg-blue-600 transition-all duration-300'
+                    : 'inline-block w-1.5 h-1.5 rounded-full bg-gray-300 transition-all duration-300';
+                indicator.appendChild(dot);
+            }
+        }
+
+        // ==========================================
+        // 16. 前後ボタン & キーボードナビゲーション
+        // ==========================================
+        document.getElementById('prev-btn').addEventListener('click', () => {
+            if (currentIndex > 0) loadDay(currentIndex - 1);
+        });
+
+        document.getElementById('next-btn').addEventListener('click', () => {
+            if (currentIndex < activeDatesList.length - 1) loadDay(currentIndex + 1);
+        });
+
+        window.addEventListener('keydown', (e) => {
+            const hasOpenModal = !searchModal.classList.contains('hidden') || 
+                                 !hitsModal.classList.contains('hidden') || 
+                                 !dateModal.classList.contains('hidden') || 
+                                 !settingsModal.classList.contains('hidden');
+
+            if (hasOpenModal) {
+                if (e.key === 'Escape') {
+                    searchModal.classList.add('hidden');
+                    hitsModal.classList.add('hidden');
+                    dateModal.classList.add('hidden');
+                    settingsModal.classList.add('hidden');
+                }
+                return;
+            }
+
+            const playerSection = document.getElementById('player-section');
+            if (playerSection.classList.contains('hidden')) return;
+
+            if (e.key === 'ArrowLeft') document.getElementById('prev-btn').click();
+            else if (e.key === 'ArrowRight') document.getElementById('next-btn').click();
+        });
+    </script>
+</body>
+</html>
