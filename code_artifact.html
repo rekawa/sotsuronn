@@ -157,7 +157,22 @@
                         <audio id="audio-player" controls class="w-full h-9 rounded-full outline-none">
                             <source src="" type="audio/mp4">
                         </audio>
-                        <p id="audio-status" class="text-xs text-red-500 mt-2 hidden">※公式プレビュー音源が見つかりませんでした。</p>
+                        <div id="audio-status" class="mt-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs hidden">
+                            <p class="font-bold text-amber-800 flex items-center mb-1">
+                                <span class="mr-1">ℹ️</span> 無料プレビュー音源が未配信の楽曲です
+                            </p>
+                            <p class="text-[11px] text-amber-700 mb-2 leading-relaxed">
+                                レコード会社の方針等によりApple公式試聴が提供されていません。以下の外部アプリでフル音源を再生できます：
+                            </p>
+                            <div class="flex items-center space-x-2">
+                                <a id="spotify-link-btn" href="#" target="_blank" rel="noopener noreferrer" class="bg-green-600 hover:bg-green-700 text-white font-bold px-2.5 py-1.5 rounded-lg text-[11px] flex items-center shadow-xs transition active:scale-95">
+                                    <span class="mr-1">🟢</span> Spotifyで聴く
+                                </a>
+                                <a id="youtube-link-btn" href="#" target="_blank" rel="noopener noreferrer" class="bg-red-600 hover:bg-red-700 text-white font-bold px-2.5 py-1.5 rounded-lg text-[11px] flex items-center shadow-xs transition active:scale-95">
+                                    <span class="mr-1">📺</span> YouTubeで探す
+                                </a>
+                            </div>
+                        </div>
                         <p id="audio-searching" class="text-xs text-blue-500 mt-2 font-bold hidden">公式音源を照合中...</p>
                     </div>
 
@@ -511,9 +526,13 @@
         function cleanSongTitle(title) {
             if (!title) return '';
             return title
-                .replace(/\s*[\(\[\{（［【].*?[\)\]\}）］】]/g, '')
-                .replace(/\s*-\s*(remaster(ed)?|version|ver|mix|live|instrumental|edit|bonus|single|radio|original|acoustic).*$/i, '')
-                .replace(/[〜～].*?[〜～]/g, '')
+                .replace(/[\(\[\{（［【〔〈《「『].*?[\)\]\}）］】〕〉》」』]/g, ' ')
+                .replace(/\s*-\s*(remaster(ed)?|version|ver|mix|live|instrumental|edit|bonus|single|radio|original|acoustic|tv|theme|opening|ending).*$/i, ' ')
+                .replace(/\s*-\s*.*$/, ' ')
+                .replace(/[〜～].*?[〜～]/g, ' ')
+                .replace(/[〜～].*$/, ' ')
+                .replace(/[!！?？+＋/／&＆]/g, ' ')
+                .replace(/\s+/g, ' ')
                 .trim();
         }
 
@@ -1153,18 +1172,35 @@
         // 9. iTunes API 公式音源マッチング
         // ==========================================
         async function fetchExactPreviewUrl(targetTrack, targetArtist) {
+            if (!targetTrack) return null;
+
             const cleanT = cleanSongTitle(targetTrack);
+            const primaryArtist = (targetArtist || '')
+                .split(/[\s,，/／×&＆+]|\s+(?:feat|featuring|with)\.?\s+/i)[0]
+                .trim();
+
             const queries = [
                 `${cleanT} ${targetArtist}`.trim(),
-                `${targetTrack} ${targetArtist}`.trim(),
-                cleanT
+                `${targetTrack} ${targetArtist}`.trim()
             ];
+            if (primaryArtist && primaryArtist !== targetArtist) {
+                queries.push(`${cleanT} ${primaryArtist}`.trim());
+            }
+            if (cleanT && cleanT.length >= 2) {
+                queries.push(cleanT);
+            }
 
             const normTargetArtist = normalizeStr(targetArtist);
+            const normPrimaryArtist = normalizeStr(primaryArtist);
             const normTargetTrack = normalizeStr(cleanT);
+            const normRawTrack = normalizeStr(targetTrack);
 
-            for (const q of queries) {
+            const noiseWords = ['cover', 'piano', 'オルゴール', 'tribute', 'karaoke', 'bgm', 'acoustic cover', 'インスト', 'originally performed', 'music box'];
+
+            for (let qIdx = 0; qIdx < queries.length; qIdx++) {
+                const q = queries[qIdx];
                 if (!q) continue;
+
                 try {
                     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&country=JP&limit=30`;
                     const res = await fetch(url);
@@ -1172,45 +1208,75 @@
                     const data = await res.json();
                     if (!data.results || data.results.length === 0) continue;
 
-                    let bestMatch = null;
-                    let highestScore = -999;
+                    let candidates = [];
 
-                    data.results.forEach(song => {
+                    data.results.forEach((song, rank) => {
                         if (!song.previewUrl) return;
 
                         const fullTitle = (song.trackName + ' ' + (song.collectionName || '')).toLowerCase();
-                        const noiseWords = ['cover', 'piano', 'オルゴール', 'tribute', 'karaoke', 'bgm', 'acoustic cover', 'インスト'];
                         const isNoise = noiseWords.some(w => fullTitle.includes(w));
-                        if (isNoise && !targetTrack.toLowerCase().includes('cover')) return;
+                        if (isNoise && !targetTrack.toLowerCase().includes('cover') && !targetTrack.toLowerCase().includes('オルゴール')) {
+                            return;
+                        }
 
                         const sArtist = normalizeStr(song.artistName);
                         const sTrack = normalizeStr(cleanSongTitle(song.trackName));
+                        const sRawTrack = normalizeStr(song.trackName);
 
                         let score = 0;
-                        if (sArtist === normTargetArtist || sArtist.includes(normTargetArtist) || normTargetArtist.includes(sArtist)) {
+                        let artistMatched = false;
+
+                        // 1. アーティスト照合
+                        if (sArtist === normTargetArtist) {
                             score += 100;
-                        } else {
-                            return;
+                            artistMatched = true;
+                        } else if (sArtist.includes(normTargetArtist) || normTargetArtist.includes(sArtist)) {
+                            score += 90;
+                            artistMatched = true;
+                        } else if (normPrimaryArtist && (sArtist === normPrimaryArtist || sArtist.includes(normPrimaryArtist) || normPrimaryArtist.includes(sArtist))) {
+                            score += 85;
+                            artistMatched = true;
                         }
 
-                        if (sTrack === normTargetTrack || sTrack.includes(normTargetTrack) || normTargetTrack.includes(sTrack)) {
+                        // 2. 楽曲タイトル照合
+                        if (sTrack === normTargetTrack || sRawTrack === normRawTrack) {
                             score += 100;
-                        } else {
-                            return;
+                        } else if (sTrack.includes(normTargetTrack) || normTargetTrack.includes(sTrack)) {
+                            score += 85;
+                        } else if (sRawTrack.includes(normTargetTrack) || normTargetTrack.includes(sRawTrack)) {
+                            score += 80;
                         }
 
-                        if (score > highestScore) {
-                            highestScore = score;
-                            bestMatch = song;
+                        // 3. 洋楽カタカナ/英語表記やタイアップ等の救済ボーナス
+                        if (qIdx < 3 && artistMatched && rank < 3) {
+                            score += (60 - rank * 10);
+                        }
+
+                        // 4. オリジナル版優先判定 (RemixやLiveは減点)
+                        if (/remix|live|acoustic|instrumental/i.test(song.trackName) && !/remix|live|acoustic/i.test(targetTrack)) {
+                            score -= 20;
+                        }
+
+                        if (score >= 130) {
+                            candidates.push({ score, song });
                         }
                     });
 
-                    if (bestMatch && highestScore >= 180) {
-                        return bestMatch.previewUrl;
+                    if (candidates.length > 0) {
+                        candidates.sort((a, b) => b.score - a.score);
+                        return candidates[0].song.previewUrl;
                     }
                 } catch (e) {}
             }
             return null;
+        }
+
+        function updateAudioStatusLinks(track, artist) {
+            const query = `${track || ''} ${artist || ''}`.trim();
+            const spotifyBtn = document.getElementById('spotify-link-btn');
+            const youtubeBtn = document.getElementById('youtube-link-btn');
+            if (spotifyBtn) spotifyBtn.href = `https://open.spotify.com/search/${encodeURIComponent(query)}`;
+            if (youtubeBtn) youtubeBtn.href = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
         }
 
         async function playTrack(tIndex) {
@@ -1258,11 +1324,13 @@
                         audioPlayer.src = previewUrl;
                         audioPlayer.play().catch(() => {});
                     } else {
+                        updateAudioStatusLinks(trackObj.track, trackObj.artist);
                         audioStatus.classList.remove('hidden');
                     }
                 } catch (e) {
                     if (requestId === activePlaybackRequestId) {
                         audioSearching.classList.add('hidden');
+                        updateAudioStatusLinks(trackObj.track, trackObj.artist);
                         audioStatus.classList.remove('hidden');
                     }
                 }
