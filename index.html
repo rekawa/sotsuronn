@@ -52,11 +52,12 @@
                         <div id="streaming-input-area">
                             <p class="text-xs text-gray-500 mb-2.5 leading-relaxed">
                                 <strong>Spotify</strong> (<code>.json</code>) または <strong>Apple Music</strong> (<code>.csv</code>) の履歴ファイルを選択してください。<br>
-                                <span class="text-[11px] text-gray-400">※複数ファイルがある場合はまとめてすべて選択してください。</span>
+                                <span class="text-[11px] text-blue-600 font-medium">※Apple Musicの場合、「Apple Music - Play History Daily Tracks.csv」や「Apple Music Play Activity.csv」等、フォルダ内のCSVファイルをまとめて複数選択可能です。</span>
                             </p>
                             <input type="file" id="streaming-file" multiple accept=".json,.csv" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer">
                             <p id="streaming-loading" class="text-xs text-blue-500 mt-2 font-bold hidden">履歴ファイルを解析中... お待ちください</p>
                         </div>
+
 
                         <div id="streaming-status-area" class="hidden mt-2">
                             <p id="streaming-status" class="text-xs text-green-600 font-bold mb-2.5">✓ 履歴を読み込みました</p>
@@ -672,29 +673,79 @@
             const rows = parseCSVToRows(csvText);
             if (rows.length < 2) return items;
 
-            const header = rows[0].map(h => h.trim().toLowerCase());
-            const timeCol = header.findIndex(h => h.includes('timestamp') || h.includes('date') || h.includes('time'));
-            const trackCol = header.findIndex(h => h.includes('song description') || h.includes('track description') || h.includes('title') || h.includes('song'));
-            const artistCol = header.findIndex(h => h.includes('artist'));
-            const msCol = header.findIndex(h => h.includes('play duration') || h.includes('duration') || h.includes('ms'));
+            const rawHeader = rows[0];
+            const header = rawHeader.map(h => h.trim().toLowerCase());
 
-            if (timeCol === -1 || trackCol === -1 || artistCol === -1) return items;
+            // 1. カラム位置の柔軟な特定
+            // 日付・時刻カラム
+            let dateCol = header.findIndex(h => h === 'date played' || h === 'event start timestamp' || h === 'last modified' || h === 'last played date');
+            if (dateCol === -1) {
+                dateCol = header.findIndex(h => h.includes('timestamp') || (h.includes('date') && !h.includes('created')) || h.includes('time'));
+            }
+
+            // トラック名・楽曲情報カラム
+            let trackCol = header.findIndex(h => h === 'track description' || h === 'track name' || h === 'song name');
+            if (trackCol === -1) {
+                trackCol = header.findIndex(h => h.includes('track description') || h.includes('song description') || h.includes('track name') || h.includes('song name') || h.includes('title'));
+            }
+
+            // アーティスト名カラム
+            let artistCol = header.findIndex(h => h === 'artist' || h === 'artist name');
+            if (artistCol === -1) {
+                artistCol = header.findIndex(h => h.includes('artist') && !h.includes('container'));
+            }
+            if (artistCol === -1) {
+                artistCol = header.findIndex(h => h.includes('artist'));
+            }
+
+            // 再生時間 (ms) カラム
+            let msCol = header.findIndex(h => h.includes('play duration') || h.includes('duration') || h.includes('ms'));
+
+            if (dateCol === -1 || trackCol === -1) return items;
 
             for (let i = 1; i < rows.length; i++) {
                 const row = rows[i];
-                if (row.length <= Math.max(timeCol, trackCol, artistCol)) continue;
+                if (row.length <= Math.max(dateCol, trackCol)) continue;
 
-                const timeRaw = row[timeCol];
-                const track = row[trackCol];
-                const artist = row[artistCol];
-                let ms = msCol !== -1 ? parseInt(row[msCol], 10) : 30000;
+                const dateRaw = row[dateCol].trim();
+                const trackRaw = row[trackCol].trim();
+                let artistRaw = (artistCol !== -1 && row.length > artistCol) ? row[artistCol].trim() : '';
+                let ms = (msCol !== -1 && row.length > msCol && /^\d+$/.test(row[msCol].trim())) ? parseInt(row[msCol].trim(), 10) : 30000;
                 if (isNaN(ms)) ms = 30000;
 
-                if (!timeRaw || !track || !artist || ms < 5000) continue;
+                if (!dateRaw || !trackRaw || ms < 5000) continue;
 
-                const dateStr = extractDateString(timeRaw);
-                if (dateStr) {
-                    items.push({ date: dateStr, track: track.trim(), artist: artist.trim(), ms });
+                // 日付の正規化 (YYYY-MM-DD)
+                let dateStr = null;
+                if (/^\d{8}$/.test(dateRaw)) {
+                    // "20260907"
+                    dateStr = `${dateRaw.slice(0, 4)}-${dateRaw.slice(4, 6)}-${dateRaw.slice(6, 8)}`;
+                } else if (/^\d{12,13}$/.test(dateRaw)) {
+                    // UNIXエポックミリ秒 "1788741190664"
+                    const d = new Date(parseInt(dateRaw, 10));
+                    if (!isNaN(d.getTime())) {
+                        const y = d.getUTCFullYear();
+                        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+                        const day = String(d.getUTCDate()).padStart(2, '0');
+                        dateStr = `${y}-${m}-${day}`;
+                    }
+                } else {
+                    dateStr = extractDateString(dateRaw);
+                }
+
+                if (!dateStr) continue;
+
+                // アーティスト名と曲名の分割 ("BE:FIRST - Missing" の形式)
+                let track = trackRaw;
+                let artist = artistRaw;
+                if (!artist && track.includes(' - ')) {
+                    const parts = track.split(' - ');
+                    artist = parts[0].trim();
+                    track = parts.slice(1).join(' - ').trim();
+                }
+
+                if (track) {
+                    items.push({ date: dateStr, track: track, artist: artist || 'Unknown Artist', ms });
                 }
             }
             return items;
@@ -753,6 +804,21 @@
                 alert("有効な音楽再生記録が見つかりませんでした。");
                 return;
             }
+
+            // アーティスト名マップの作成（曲名 -> 既知のアーティスト名）
+            const knownArtists = {};
+            items.forEach(it => {
+                if (it.artist && it.artist !== 'Unknown Artist') {
+                    knownArtists[it.track.toLowerCase()] = it.artist;
+                }
+            });
+            // Unknown Artist の自動補完
+            items.forEach(it => {
+                if (!it.artist || it.artist === 'Unknown Artist') {
+                    const found = knownArtists[it.track.toLowerCase()];
+                    if (found) it.artist = found;
+                }
+            });
 
             const dailyScores = {};
             items.forEach(item => {
