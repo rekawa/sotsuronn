@@ -31,7 +31,10 @@
             <!-- ヘッダー -->
             <div class="bg-blue-600 text-white py-3.5 px-4 rounded-b-2xl shadow-md mb-4 relative flex items-center justify-between">
                 <div class="flex-1 text-center pl-6">
-                    <h1 class="text-lg font-bold tracking-wide">思い出音楽プレーヤー</h1>
+                    <div class="flex items-center justify-center space-x-1.5">
+                        <h1 class="text-lg font-bold tracking-wide">思い出音楽プレーヤー</h1>
+                        <span class="text-[10px] bg-blue-500/80 text-white px-2 py-0.5 rounded-full font-medium">v2.4</span>
+                    </div>
                     <p class="text-[11px] opacity-90">写真と音楽で、あの日を振り返る</p>
                 </div>
                 <button id="open-settings-btn" title="設定" class="text-white hover:bg-blue-700 active:bg-blue-800 p-2 rounded-full transition text-sm">
@@ -50,10 +53,22 @@
                         </h2>
                         
                         <div id="streaming-input-area">
-                            <p class="text-xs text-gray-500 mb-2.5 leading-relaxed">
-                                <strong>Spotify</strong> (<code>.json</code>) または <strong>Apple Music</strong> (<code>.csv</code>) の履歴ファイルを選択してください。<br>
-                                <span class="text-[11px] text-blue-600 font-medium">※Apple Musicの場合、「Apple Music - Play History Daily Tracks.csv」や「Apple Music Play Activity.csv」等、フォルダ内のCSVファイルをまとめて複数選択可能です。</span>
+                            <p class="text-xs text-gray-500 mb-2 leading-relaxed">
+                                <strong>Spotify</strong> (<code>.json</code>) または <strong>Apple Music</strong> (<code>.csv</code>) の履歴ファイルを選択してください。
                             </p>
+                            
+                            <!-- Apple Music 選択ガイド -->
+                            <div class="mb-2.5 p-2.5 bg-blue-50/90 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed shadow-xs">
+                                <p class="font-bold mb-1 flex items-center text-blue-800 text-[11px]">
+                                    <span class="mr-1">💡</span> Apple Music Activity フォルダのファイル選択:
+                                </p>
+                                <ul class="list-disc pl-4 space-y-0.5 text-[11px] text-blue-700">
+                                    <li><strong>推奨ファイル:</strong> <code class="bg-white px-1 py-0.5 rounded border border-blue-200 font-bold text-blue-900">Apple Music - Play History Daily Tracks.csv</code></li>
+                                    <li>または <code class="bg-white px-1 py-0.5 rounded border border-blue-200">Apple Music Play Activity.csv</code></li>
+                                    <li>フォルダ内のCSVファイルを<strong>まとめて全選択（Ctrl+A / Cmd+A）</strong>しても自動抽出します。</li>
+                                </ul>
+                            </div>
+
                             <input type="file" id="streaming-file" multiple accept=".json,.csv" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer">
                             <p id="streaming-loading" class="text-xs text-blue-500 mt-2 font-bold hidden">履歴ファイルを解析中... お待ちください</p>
                         </div>
@@ -618,10 +633,25 @@
 
             let parsedHistoryItems = [];
             let filesProcessed = 0;
+            const fileNames = Array.from(files).map(f => f.name);
+
+            const checkCompletion = () => {
+                filesProcessed++;
+                if (filesProcessed === files.length) {
+                    loadingEl.classList.add('hidden');
+                    finalizeStreamingHistory(parsedHistoryItems, fileNames);
+                }
+            };
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 const fileName = file.name.toLowerCase();
+
+                // .json または .csv のみを対象
+                if (!fileName.endsWith('.json') && !fileName.endsWith('.csv')) {
+                    checkCompletion();
+                    continue;
+                }
 
                 const reader = new FileReader();
                 reader.onload = function(evt) {
@@ -630,21 +660,25 @@
                         try {
                             const data = JSON.parse(content);
                             if (Array.isArray(data)) {
-                                parsedHistoryItems = parsedHistoryItems.concat(parseSpotifyItems(data));
+                                const items = parseSpotifyItems(data);
+                                parsedHistoryItems = parsedHistoryItems.concat(items);
                             }
-                        } catch (err) {}
+                        } catch (err) {
+                            console.warn("Spotify JSON parse error:", err);
+                        }
                     } else if (fileName.endsWith('.csv')) {
                         try {
                             const items = parseAppleMusicCSV(content);
+                            console.log(`Parsed ${file.name}: ${items.length} items`);
                             parsedHistoryItems = parsedHistoryItems.concat(items);
-                        } catch (err) {}
+                        } catch (err) {
+                            console.warn("Apple Music CSV parse error:", err);
+                        }
                     }
-
-                    filesProcessed++;
-                    if (filesProcessed === files.length) {
-                        loadingEl.classList.add('hidden');
-                        finalizeStreamingHistory(parsedHistoryItems);
-                    }
+                    checkCompletion();
+                };
+                reader.onerror = function() {
+                    checkCompletion();
                 };
                 reader.readAsText(file);
             }
@@ -799,9 +833,10 @@
             }
         }
 
-        function finalizeStreamingHistory(items) {
+        function finalizeStreamingHistory(items, fileNames = []) {
             if (!items || items.length === 0) {
-                alert("有効な音楽再生記録が見つかりませんでした。");
+                const namesStr = fileNames.length > 0 ? `\n（選択されたファイル: ${fileNames.slice(0, 3).join(', ')}${fileNames.length > 3 ? ' 他' : ''}）` : '';
+                alert(`【音楽再生記録が見つかりませんでした】${namesStr}\n\n選択されたファイルには、曲名と再生日時のペアが含まれていないか、統計・設定ファイルです。\n\n『Apple Music Activity』フォルダ内にある、以下のいずれかのファイルを選択してください：\n\n・「Apple Music - Play History Daily Tracks.csv」（★最も推奨）\n・「Apple Music Play Activity.csv」\n\n※フォルダ内のすべてのCSVファイルをまとめて複数選択（全選択）しても自動で有効なデータを抽出できます。`);
                 return;
             }
 
