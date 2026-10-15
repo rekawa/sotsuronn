@@ -33,7 +33,7 @@
                 <div class="flex-1 text-center pl-6">
                     <div class="flex items-center justify-center space-x-1.5">
                         <h1 class="text-lg font-bold tracking-wide">思い出音楽プレーヤー</h1>
-                        <span class="text-[10px] bg-blue-500/80 text-white px-2 py-0.5 rounded-full font-medium">v2.4</span>
+                        <span class="text-[10px] bg-blue-500/80 text-white px-2 py-0.5 rounded-full font-medium">v2.5</span>
                     </div>
                     <p class="text-[11px] opacity-90">写真と音楽で、あの日を振り返る</p>
                 </div>
@@ -57,16 +57,17 @@
                                 <strong>Spotify</strong> (<code>.json</code>) または <strong>Apple Music</strong> (<code>.csv</code>) の履歴ファイルを選択してください。
                             </p>
                             
-                            <!-- Apple Music 選択ガイド -->
+                            <!-- Apple Music 選択ガイド（正確なファイル指定） -->
                             <div class="mb-2.5 p-2.5 bg-blue-50/90 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed shadow-xs">
                                 <p class="font-bold mb-1 flex items-center text-blue-800 text-[11px]">
-                                    <span class="mr-1">💡</span> Apple Music Activity フォルダのファイル選択:
+                                    <span class="mr-1">⚠️</span> Apple Music の履歴ファイルについて:
                                 </p>
-                                <ul class="list-disc pl-4 space-y-0.5 text-[11px] text-blue-700">
-                                    <li><strong>推奨ファイル:</strong> <code class="bg-white px-1 py-0.5 rounded border border-blue-200 font-bold text-blue-900">Apple Music - Play History Daily Tracks.csv</code></li>
-                                    <li>または <code class="bg-white px-1 py-0.5 rounded border border-blue-200">Apple Music Play Activity.csv</code></li>
-                                    <li>フォルダ内のCSVファイルを<strong>まとめて全選択（Ctrl+A / Cmd+A）</strong>しても自動抽出します。</li>
-                                </ul>
+                                <p class="text-[11px] text-blue-800 mb-1 leading-normal">
+                                    フォルダ内の <strong class="text-blue-950 bg-white px-1.5 py-0.5 rounded border border-blue-300">Apple Music - Play History Daily Tracks.csv</strong> を選択してください。
+                                </p>
+                                <p class="text-[10px] text-gray-500 leading-normal">
+                                    ※他のCSVファイルにはアーティスト名が記録されていないため、同名の別曲が誤って再生されてしまいます。必ず上記ファイルを選択してください。
+                                </p>
                             </div>
 
                             <input type="file" id="streaming-file" multiple accept=".json,.csv" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer">
@@ -836,7 +837,14 @@
         function finalizeStreamingHistory(items, fileNames = []) {
             if (!items || items.length === 0) {
                 const namesStr = fileNames.length > 0 ? `\n（選択されたファイル: ${fileNames.slice(0, 3).join(', ')}${fileNames.length > 3 ? ' 他' : ''}）` : '';
-                alert(`【音楽再生記録が見つかりませんでした】${namesStr}\n\n選択されたファイルには、曲名と再生日時のペアが含まれていないか、統計・設定ファイルです。\n\n『Apple Music Activity』フォルダ内にある、以下のいずれかのファイルを選択してください：\n\n・「Apple Music - Play History Daily Tracks.csv」（★最も推奨）\n・「Apple Music Play Activity.csv」\n\n※フォルダ内のすべてのCSVファイルをまとめて複数選択（全選択）しても自動で有効なデータを抽出できます。`);
+                alert(`【音楽再生記録が見つかりませんでした】${namesStr}\n\n選択されたファイルには、曲名と再生日時のペアが含まれていないか、統計・設定ファイルです。\n\n『Apple Music Activity』フォルダ内にある、以下のファイルを選択してください：\n\n👉「Apple Music - Play History Daily Tracks.csv」`);
+                return;
+            }
+
+            // アーティスト名が全く含まれていないファイル（例: Play Activity.csv単体）の安全ブロック
+            const hasValidArtist = items.some(it => it.artist && it.artist !== 'Unknown Artist');
+            if (!hasValidArtist) {
+                alert("【ご注意: 正しい楽曲を特定できません】\n\n選択されたファイル（Apple Music Play Activity.csv 等）にはアーティスト名が記録されていません。\nこのまま読み込むと同名の全く別のアーティストの楽曲が誤って再生されてしまいます。\n\n必ずアーティスト名が記録されている\n👉『Apple Music - Play History Daily Tracks.csv』\nを選択してください。");
                 return;
             }
 
