@@ -33,7 +33,7 @@
                 <div class="flex-1 text-center pl-6">
                     <div class="flex items-center justify-center space-x-1.5">
                         <h1 class="text-lg font-bold tracking-wide">思い出音楽プレーヤー</h1>
-                        <span class="text-[10px] bg-blue-500/80 text-white px-2 py-0.5 rounded-full font-medium">v2.5</span>
+                        <span class="text-[10px] bg-blue-500/80 text-white px-2 py-0.5 rounded-full font-medium">v2.6</span>
                     </div>
                     <p class="text-[11px] opacity-90">写真と音楽で、あの日を振り返る</p>
                 </div>
@@ -54,34 +54,24 @@
                         
                         <div id="streaming-input-area">
                             <p class="text-xs text-gray-500 mb-2 leading-relaxed">
-                                <strong>Spotify</strong> (<code>.json</code>) または <strong>Apple Music</strong> (<code>.csv</code>) の履歴ファイルを選択してください。
+                                <strong>Spotify</strong> (<code>.json</code>) または <strong>Apple Music</strong> の履歴ファイルを選択してください。<br>
+                                <span class="text-[11px] text-blue-600 font-semibold">※Apple Musicは <code>Apple Music - Play History Daily Tracks.csv</code> を選択</span>
                             </p>
-                            
-                            <!-- Apple Music 選択ガイド（正確なファイル指定） -->
-                            <div class="mb-2.5 p-2.5 bg-blue-50/90 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed shadow-xs">
-                                <p class="font-bold mb-1 flex items-center text-blue-800 text-[11px]">
-                                    <span class="mr-1">⚠️</span> Apple Music の履歴ファイルについて:
-                                </p>
-                                <p class="text-[11px] text-blue-800 mb-1 leading-normal">
-                                    フォルダ内の <strong class="text-blue-950 bg-white px-1.5 py-0.5 rounded border border-blue-300">Apple Music - Play History Daily Tracks.csv</strong> を選択してください。
-                                </p>
-                                <p class="text-[10px] text-gray-500 leading-normal">
-                                    ※他のCSVファイルにはアーティスト名が記録されていないため、同名の別曲が誤って再生されてしまいます。必ず上記ファイルを選択してください。
-                                </p>
-                            </div>
 
                             <input type="file" id="streaming-file" multiple accept=".json,.csv" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer">
                             <p id="streaming-loading" class="text-xs text-blue-500 mt-2 font-bold hidden">履歴ファイルを解析中... お待ちください</p>
                         </div>
 
-
-                        <div id="streaming-status-area" class="hidden mt-2">
-                            <p id="streaming-status" class="text-xs text-green-600 font-bold mb-2.5">✓ 履歴を読み込みました</p>
+                        <div id="streaming-status-area" class="hidden mt-3 pt-2.5 border-t border-gray-200">
+                            <div class="flex items-center justify-between mb-2">
+                                <p id="streaming-status" class="text-xs text-green-600 font-bold">✓ 履歴を読み込みました</p>
+                                <span id="streaming-day-count-badge" class="text-[11px] bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded-full">0日分</span>
+                            </div>
                             <div class="flex flex-wrap gap-2">
-                                <button id="replace-file-btn" type="button" class="text-xs text-blue-600 border border-blue-200 bg-white rounded-lg px-2.5 py-1 hover:bg-blue-50 transition active:scale-95">
-                                    📁 履歴ファイルを再選択
+                                <button id="add-more-streaming-btn" type="button" class="text-xs text-blue-600 border border-blue-200 bg-white font-bold rounded-lg px-2.5 py-1.5 hover:bg-blue-50 transition active:scale-95 shadow-xs flex items-center">
+                                    <span class="mr-1 text-sm font-black">＋</span> 別のファイルを追加で読み込む
                                 </button>
-                                <button id="reset-all-btn" type="button" class="text-xs text-red-500 border border-red-200 bg-white rounded-lg px-2.5 py-1 hover:bg-red-50 transition active:scale-95">
+                                <button id="reset-all-btn" type="button" class="text-xs text-red-500 border border-red-200 bg-white rounded-lg px-2.5 py-1.5 hover:bg-red-50 transition active:scale-95 flex items-center">
                                     🗑️ 全履歴を初期化
                                 </button>
                             </div>
@@ -597,21 +587,27 @@
             }
         });
 
-        function markStreamingAsReady(message) {
-            document.getElementById('streaming-input-area').classList.add('hidden');
+        function markStreamingAsReady(message, totalDays) {
             const statusArea = document.getElementById('streaming-status-area');
             statusArea.classList.remove('hidden');
             document.getElementById('streaming-status').innerText = message;
+
+            const days = totalDays !== undefined ? totalDays : Object.keys(rawStreamingData || {}).length;
+            const badge = document.getElementById('streaming-day-count-badge');
+            if (badge) badge.innerText = `${days}日分`;
             
             isStreamingReady = true;
             checkReadyState();
         }
 
-        document.getElementById('replace-file-btn').addEventListener('click', () => {
-            document.getElementById('streaming-status-area').classList.add('hidden');
-            document.getElementById('streaming-input-area').classList.remove('hidden');
-            document.getElementById('streaming-file').value = '';
-        });
+        const addMoreStreamingBtn = document.getElementById('add-more-streaming-btn');
+        if (addMoreStreamingBtn) {
+            addMoreStreamingBtn.addEventListener('click', () => {
+                const fileInput = document.getElementById('streaming-file');
+                fileInput.value = ''; // 同じファイルでも再選択可能にする
+                fileInput.click();
+            });
+        }
 
         document.getElementById('reset-all-btn').addEventListener('click', async () => {
             if (confirm("【初期化】保存されているすべての履歴と手動追加曲をリセットしますか？")) {
@@ -848,14 +844,44 @@
                 return;
             }
 
-            // アーティスト名マップの作成（曲名 -> 既知のアーティスト名）
+            // 1. 既存の rawStreamingData のスコアおよびキャッシュされたプレビューURLを復元
+            const dailyScores = {};
+            const existingPreviews = {};
+            if (rawStreamingData && typeof rawStreamingData === 'object') {
+                Object.entries(rawStreamingData).forEach(([date, songs]) => {
+                    if (!dailyScores[date]) dailyScores[date] = {};
+                    if (Array.isArray(songs)) {
+                        songs.forEach(s => {
+                            if (s && s.track && s.artist) {
+                                const key = `${s.artist}__SPLIT__${s.track}`;
+                                dailyScores[date][key] = Math.max(dailyScores[date][key] || 0, s.ms || 30000);
+                                if (s.previewUrl) existingPreviews[key] = s.previewUrl;
+                            }
+                        });
+                    }
+                });
+            }
+
+            // 2. 既知のアーティスト辞書の作成（既存データ + 新規データ）
             const knownArtists = {};
+            if (rawStreamingData && typeof rawStreamingData === 'object') {
+                Object.values(rawStreamingData).forEach(songs => {
+                    if (Array.isArray(songs)) {
+                        songs.forEach(s => {
+                            if (s && s.track && s.artist && s.artist !== 'Unknown Artist') {
+                                knownArtists[s.track.toLowerCase()] = s.artist;
+                            }
+                        });
+                    }
+                });
+            }
             items.forEach(it => {
                 if (it.artist && it.artist !== 'Unknown Artist') {
                     knownArtists[it.track.toLowerCase()] = it.artist;
                 }
             });
-            // Unknown Artist の自動補完
+
+            // 3. Unknown Artist の自動補完
             items.forEach(it => {
                 if (!it.artist || it.artist === 'Unknown Artist') {
                     const found = knownArtists[it.track.toLowerCase()];
@@ -863,7 +889,7 @@
                 }
             });
 
-            const dailyScores = {};
+            // 4. 新規アイテムの再生時間を加算マージ
             items.forEach(item => {
                 const date = item.date;
                 if (!dailyScores[date]) dailyScores[date] = {};
@@ -871,6 +897,9 @@
                 dailyScores[date][songKey] = (dailyScores[date][songKey] || 0) + item.ms;
             });
 
+            const prevDayCount = Object.keys(rawStreamingData || {}).length;
+
+            // 5. 日別の TOP5 を再計算
             rawStreamingData = {};
             Object.keys(dailyScores).forEach(date => {
                 const sorted = Object.entries(dailyScores[date])
@@ -879,14 +908,25 @@
 
                 rawStreamingData[date] = sorted.map(([key, ms], idx) => {
                     const [artist, track] = key.split('__SPLIT__');
-                    return { track, artist, ms, rank: idx + 1, source: 'streaming', previewUrl: null };
+                    return {
+                        track,
+                        artist,
+                        ms,
+                        rank: idx + 1,
+                        source: 'streaming',
+                        previewUrl: existingPreviews[key] || null
+                    };
                 });
             });
 
-            const dayCount = Object.keys(rawStreamingData).length;
+            const newDayCount = Object.keys(rawStreamingData).length;
+            const message = prevDayCount > 0 
+                ? `✓ 履歴を追加・保存しました（累計 ${newDayCount}日分）`
+                : `✓ 履歴を解析・保存しました（${newDayCount}日分）`;
+
             localforage.setItem('saved_streaming_history', rawStreamingData)
-                .then(() => markStreamingAsReady(`✓ 履歴を解析・保存しました（${dayCount}日分）`))
-                .catch(() => markStreamingAsReady(`✓ 履歴を解析しました（${dayCount}日分）`));
+                .then(() => markStreamingAsReady(message, newDayCount))
+                .catch(() => markStreamingAsReady(message, newDayCount));
         }
 
         // ==========================================
