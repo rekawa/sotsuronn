@@ -33,7 +33,7 @@
                 <div class="flex-1 text-center pl-6">
                     <div class="flex items-center justify-center space-x-1.5">
                         <h1 class="text-lg font-bold tracking-wide">思い出音楽プレーヤー</h1>
-                        <span class="text-[10px] bg-blue-500/80 text-white px-2 py-0.5 rounded-full font-medium">v2.6</span>
+                        <span class="text-[10px] bg-blue-500/80 text-white px-2 py-0.5 rounded-full font-medium">v2.7</span>
                     </div>
                     <p class="text-[11px] opacity-90">写真と音楽で、あの日を振り返る</p>
                 </div>
@@ -62,11 +62,18 @@
                             <p id="streaming-loading" class="text-xs text-blue-500 mt-2 font-bold hidden">履歴ファイルを解析中... お待ちください</p>
                         </div>
 
+                        <!-- 読み込み済みファイル一覧エリア -->
                         <div id="streaming-status-area" class="hidden mt-3 pt-2.5 border-t border-gray-200">
                             <div class="flex items-center justify-between mb-2">
-                                <p id="streaming-status" class="text-xs text-green-600 font-bold">✓ 履歴を読み込みました</p>
-                                <span id="streaming-day-count-badge" class="text-[11px] bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded-full">0日分</span>
+                                <span class="text-[11px] font-bold text-gray-700 flex items-center">
+                                    📁 読み込み済みのファイル (<span id="streaming-file-count">0</span>件):
+                                </span>
+                                <span id="streaming-day-count-badge" class="text-[11px] bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded-full">累計 0日分</span>
                             </div>
+
+                            <!-- 読み込んだファイル名のリスト（1個目も2個目もずっと並んで表示される） -->
+                            <div id="streaming-files-list" class="space-y-1.5 mb-2.5"></div>
+
                             <div class="flex flex-wrap gap-2">
                                 <button id="add-more-streaming-btn" type="button" class="text-xs text-blue-600 border border-blue-200 bg-white font-bold rounded-lg px-2.5 py-1.5 hover:bg-blue-50 transition active:scale-95 shadow-xs flex items-center">
                                     <span class="mr-1 text-sm font-black">＋</span> 別のファイルを追加で読み込む
@@ -502,6 +509,7 @@
         // 2. アプリケーション状態変数
         // ==========================================
         let rawStreamingData = {};       // 日別再生曲TOP5配列 { 'YYYY-MM-DD': [ { track, artist, ms, rank, source } ] }
+        let loadedStreamingFiles = [];   // 読み込み済みファイルリスト [ { id, name, type, dayCount, items } ]
         let manualTracksData = {};       // 手動追加曲 { 'YYYY-MM-DD': [ { track, artist, previewUrl, source: 'manual' } ] }
         let deletedTracksData = {};      // 削除した曲 { 'YYYY-MM-DD': [ 'artist__SPLIT__track' ] }
         let hiddenSettings = { hiddenSongs: [], hiddenPeriods: [] };
@@ -563,6 +571,7 @@
         window.addEventListener('DOMContentLoaded', async () => {
             try {
                 const savedStreaming = await localforage.getItem('saved_streaming_history');
+                const savedFiles = await localforage.getItem('saved_streaming_files_meta');
                 const savedManual = await localforage.getItem('saved_manual_tracks');
                 const savedDeleted = await localforage.getItem('saved_deleted_tracks');
                 const savedHidden = await localforage.getItem('saved_hidden_settings');
@@ -578,25 +587,80 @@
                     }
                 });
 
-                const streamingDayCount = Object.keys(rawStreamingData).length;
-                if (streamingDayCount > 0) {
-                    markStreamingAsReady(`✓ 前回保存した履歴を復元しました（${streamingDayCount}日分）`);
+                if (Array.isArray(savedFiles) && savedFiles.length > 0) {
+                    loadedStreamingFiles = savedFiles;
+                } else if (Object.keys(rawStreamingData).length > 0) {
+                    // 旧バージョン保存データの互換移行
+                    loadedStreamingFiles = [{
+                        id: 'legacy_saved_file',
+                        name: '保存済み履歴データ',
+                        type: 'streaming',
+                        dayCount: Object.keys(rawStreamingData).length,
+                        items: []
+                    }];
                 }
+
+                renderStreamingFilesList();
             } catch (err) {
                 console.error("復元エラー:", err);
             }
         });
 
-        function markStreamingAsReady(message, totalDays) {
+        function renderStreamingFilesList() {
+            const listEl = document.getElementById('streaming-files-list');
+            const countEl = document.getElementById('streaming-file-count');
+            const badgeEl = document.getElementById('streaming-day-count-badge');
             const statusArea = document.getElementById('streaming-status-area');
-            statusArea.classList.remove('hidden');
-            document.getElementById('streaming-status').innerText = message;
 
-            const days = totalDays !== undefined ? totalDays : Object.keys(rawStreamingData || {}).length;
-            const badge = document.getElementById('streaming-day-count-badge');
-            if (badge) badge.innerText = `${days}日分`;
-            
-            isStreamingReady = true;
+            if (!listEl) return;
+            listEl.innerHTML = '';
+
+            const fileCount = loadedStreamingFiles ? loadedStreamingFiles.length : 0;
+            if (countEl) countEl.innerText = fileCount;
+
+            const totalDays = Object.keys(rawStreamingData || {}).length;
+            if (badgeEl) badgeEl.innerText = `累計 ${totalDays}日分`;
+
+            if (fileCount === 0) {
+                statusArea.classList.add('hidden');
+                isStreamingReady = false;
+                checkReadyState();
+                return;
+            }
+
+            statusArea.classList.remove('hidden');
+
+            loadedStreamingFiles.forEach((fileInfo, idx) => {
+                const row = document.createElement('div');
+                row.className = "flex items-center justify-between bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs shadow-2xs";
+
+                const icon = fileInfo.type === 'spotify' ? '🟢' : (fileInfo.type === 'apple' ? '🍎' : '🎵');
+                const label = fileInfo.type === 'spotify' ? 'Spotify' : (fileInfo.type === 'apple' ? 'Apple Music' : '音楽サブスク');
+
+                row.innerHTML = `
+                    <div class="flex items-center space-x-1.5 truncate mr-2">
+                        <span class="text-sm shrink-0">${icon}</span>
+                        <div class="truncate">
+                            <span class="font-bold text-gray-800 text-[11px] block truncate" title="${escapeHtml(fileInfo.name)}">${escapeHtml(fileInfo.name)}</span>
+                            <span class="text-[9px] text-gray-400 block">${label}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2 shrink-0">
+                        <span class="text-[10px] text-green-700 bg-green-50 border border-green-200 font-bold px-1.5 py-0.5 rounded">${fileInfo.dayCount}日分</span>
+                        <button type="button" class="text-gray-400 hover:text-red-500 hover:bg-red-50 font-bold text-sm w-5 h-5 flex items-center justify-center rounded transition" title="このファイルを削除">&times;</button>
+                    </div>
+                `;
+
+                const delBtn = row.querySelector('button');
+                delBtn.onclick = () => {
+                    loadedStreamingFiles.splice(idx, 1);
+                    rebuildStreamingFromLoadedFiles();
+                };
+
+                listEl.appendChild(row);
+            });
+
+            isStreamingReady = totalDays > 0;
             checkReadyState();
         }
 
@@ -628,24 +692,31 @@
             const loadingEl = document.getElementById('streaming-loading');
             loadingEl.classList.remove('hidden');
 
-            let parsedHistoryItems = [];
             let filesProcessed = 0;
-            const fileNames = Array.from(files).map(f => f.name);
+            let newlyAddedFiles = 0;
+            const failedFiles = [];
 
             const checkCompletion = () => {
                 filesProcessed++;
                 if (filesProcessed === files.length) {
                     loadingEl.classList.add('hidden');
-                    finalizeStreamingHistory(parsedHistoryItems, fileNames);
+                    e.target.value = ''; // inputの表示をクリア（リストに表示されるため問題なし）
+
+                    if (newlyAddedFiles > 0) {
+                        rebuildStreamingFromLoadedFiles();
+                    } else if (failedFiles.length > 0) {
+                        alert(`【音楽再生記録が見つかりませんでした】\n（選択されたファイル: ${failedFiles.join(', ')}）\n\n選択されたファイルには曲名と日時の再生記録が含まれていないか、アーティスト名が欠落しています。\n\n・Spotify: 「StreamingHistory0.json」などのJSONファイル\n・Apple Music: 「Apple Music - Play History Daily Tracks.csv」\nを選択してください。`);
+                    }
                 }
             };
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                const fileName = file.name.toLowerCase();
+                const fileName = file.name;
+                const lowerName = fileName.toLowerCase();
 
                 // .json または .csv のみを対象
-                if (!fileName.endsWith('.json') && !fileName.endsWith('.csv')) {
+                if (!lowerName.endsWith('.json') && !lowerName.endsWith('.csv')) {
                     checkCompletion();
                     continue;
                 }
@@ -653,24 +724,50 @@
                 const reader = new FileReader();
                 reader.onload = function(evt) {
                     const content = evt.target.result;
-                    if (fileName.endsWith('.json')) {
+                    let fileItems = [];
+                    let fileType = 'other';
+
+                    if (lowerName.endsWith('.json')) {
                         try {
                             const data = JSON.parse(content);
                             if (Array.isArray(data)) {
-                                const items = parseSpotifyItems(data);
-                                parsedHistoryItems = parsedHistoryItems.concat(items);
+                                fileItems = parseSpotifyItems(data);
+                                fileType = 'spotify';
                             }
                         } catch (err) {
                             console.warn("Spotify JSON parse error:", err);
                         }
-                    } else if (fileName.endsWith('.csv')) {
+                    } else if (lowerName.endsWith('.csv')) {
                         try {
-                            const items = parseAppleMusicCSV(content);
-                            console.log(`Parsed ${file.name}: ${items.length} items`);
-                            parsedHistoryItems = parsedHistoryItems.concat(items);
+                            fileItems = parseAppleMusicCSV(content);
+                            fileType = 'apple';
                         } catch (err) {
                             console.warn("Apple Music CSV parse error:", err);
                         }
+                    }
+
+                    // アーティスト名のないCSVファイルはブロック
+                    const hasValidArtist = fileItems.some(it => it.artist && it.artist !== 'Unknown Artist');
+                    if (fileItems.length === 0 || !hasValidArtist) {
+                        failedFiles.push(fileName);
+                    } else {
+                        const uniqueDays = new Set(fileItems.map(it => it.date)).size;
+                        const fileRecord = {
+                            id: 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                            name: fileName,
+                            type: fileType,
+                            dayCount: uniqueDays,
+                            items: fileItems
+                        };
+
+                        // 同一ファイル名が既に存在する場合は更新、なければ追加
+                        const existingIdx = loadedStreamingFiles.findIndex(f => f.name === fileName);
+                        if (existingIdx !== -1) {
+                            loadedStreamingFiles[existingIdx] = fileRecord;
+                        } else {
+                            loadedStreamingFiles.push(fileRecord);
+                        }
+                        newlyAddedFiles++;
                     }
                     checkCompletion();
                 };
@@ -830,76 +927,47 @@
             }
         }
 
-        function finalizeStreamingHistory(items, fileNames = []) {
-            if (!items || items.length === 0) {
-                const namesStr = fileNames.length > 0 ? `\n（選択されたファイル: ${fileNames.slice(0, 3).join(', ')}${fileNames.length > 3 ? ' 他' : ''}）` : '';
-                alert(`【音楽再生記録が見つかりませんでした】${namesStr}\n\n選択されたファイルには、曲名と再生日時のペアが含まれていないか、統計・設定ファイルです。\n\n『Apple Music Activity』フォルダ内にある、以下のファイルを選択してください：\n\n👉「Apple Music - Play History Daily Tracks.csv」`);
+        function rebuildStreamingFromLoadedFiles() {
+            if (!loadedStreamingFiles || loadedStreamingFiles.length === 0) {
+                rawStreamingData = {};
+                localforage.removeItem('saved_streaming_history');
+                localforage.removeItem('saved_streaming_files_meta');
+                renderStreamingFilesList();
                 return;
             }
 
-            // アーティスト名が全く含まれていないファイル（例: Play Activity.csv単体）の安全ブロック
-            const hasValidArtist = items.some(it => it.artist && it.artist !== 'Unknown Artist');
-            if (!hasValidArtist) {
-                alert("【ご注意: 正しい楽曲を特定できません】\n\n選択されたファイル（Apple Music Play Activity.csv 等）にはアーティスト名が記録されていません。\nこのまま読み込むと同名の全く別のアーティストの楽曲が誤って再生されてしまいます。\n\n必ずアーティスト名が記録されている\n👉『Apple Music - Play History Daily Tracks.csv』\nを選択してください。");
-                return;
-            }
+            // 1. 全ファイルの items を集約
+            let allItems = [];
+            loadedStreamingFiles.forEach(f => {
+                if (Array.isArray(f.items)) {
+                    allItems = allItems.concat(f.items);
+                }
+            });
 
-            // 1. 既存の rawStreamingData のスコアおよびキャッシュされたプレビューURLを復元
-            const dailyScores = {};
-            const existingPreviews = {};
-            if (rawStreamingData && typeof rawStreamingData === 'object') {
-                Object.entries(rawStreamingData).forEach(([date, songs]) => {
-                    if (!dailyScores[date]) dailyScores[date] = {};
-                    if (Array.isArray(songs)) {
-                        songs.forEach(s => {
-                            if (s && s.track && s.artist) {
-                                const key = `${s.artist}__SPLIT__${s.track}`;
-                                dailyScores[date][key] = Math.max(dailyScores[date][key] || 0, s.ms || 30000);
-                                if (s.previewUrl) existingPreviews[key] = s.previewUrl;
-                            }
-                        });
-                    }
-                });
-            }
-
-            // 2. 既知のアーティスト辞書の作成（既存データ + 新規データ）
+            // 2. 既知のアーティスト辞書の作成
             const knownArtists = {};
-            if (rawStreamingData && typeof rawStreamingData === 'object') {
-                Object.values(rawStreamingData).forEach(songs => {
-                    if (Array.isArray(songs)) {
-                        songs.forEach(s => {
-                            if (s && s.track && s.artist && s.artist !== 'Unknown Artist') {
-                                knownArtists[s.track.toLowerCase()] = s.artist;
-                            }
-                        });
-                    }
-                });
-            }
-            items.forEach(it => {
+            allItems.forEach(it => {
                 if (it.artist && it.artist !== 'Unknown Artist') {
                     knownArtists[it.track.toLowerCase()] = it.artist;
                 }
             });
-
-            // 3. Unknown Artist の自動補完
-            items.forEach(it => {
+            allItems.forEach(it => {
                 if (!it.artist || it.artist === 'Unknown Artist') {
                     const found = knownArtists[it.track.toLowerCase()];
                     if (found) it.artist = found;
                 }
             });
 
-            // 4. 新規アイテムの再生時間を加算マージ
-            items.forEach(item => {
+            // 3. 日別のスコア集計
+            const dailyScores = {};
+            allItems.forEach(item => {
                 const date = item.date;
                 if (!dailyScores[date]) dailyScores[date] = {};
                 const songKey = `${item.artist}__SPLIT__${item.track}`;
                 dailyScores[date][songKey] = (dailyScores[date][songKey] || 0) + item.ms;
             });
 
-            const prevDayCount = Object.keys(rawStreamingData || {}).length;
-
-            // 5. 日別の TOP5 を再計算
+            // 4. 日別 TOP5 を生成
             rawStreamingData = {};
             Object.keys(dailyScores).forEach(date => {
                 const sorted = Object.entries(dailyScores[date])
@@ -914,23 +982,20 @@
                         ms,
                         rank: idx + 1,
                         source: 'streaming',
-                        previewUrl: existingPreviews[key] || null
+                        previewUrl: null
                     };
                 });
             });
 
-            const newDayCount = Object.keys(rawStreamingData).length;
-            const message = prevDayCount > 0 
-                ? `✓ 履歴を追加・保存しました（累計 ${newDayCount}日分）`
-                : `✓ 履歴を解析・保存しました（${newDayCount}日分）`;
+            // 5. IndexedDB に保存
+            localforage.setItem('saved_streaming_history', rawStreamingData);
+            localforage.setItem('saved_streaming_files_meta', loadedStreamingFiles);
 
-            localforage.setItem('saved_streaming_history', rawStreamingData)
-                .then(() => markStreamingAsReady(message, newDayCount))
-                .catch(() => markStreamingAsReady(message, newDayCount));
+            renderStreamingFilesList();
         }
 
         // ==========================================
-        // 6. 写真の解析 (完全ファイルスキャンExif)
+        // 6. 写真の解析 (完全ファイルスキャンExif - 累積追加対応)
         // ==========================================
         document.getElementById('photo-files').addEventListener('change', async function(e) {
             const files = e.target.files;
@@ -943,23 +1008,30 @@
             
             loadingEl.classList.remove('hidden');
             loadingEl.innerText = `写真の日時を解析中... (0/${files.length}枚)`;
-            statusEl.classList.add('hidden');
-            previewSection.classList.add('hidden');
-            previewTags.innerHTML = '';
             
-            photoDatabase = {}; 
-            let processedCount = 0;
+            // 既存の photoDatabase を保持し、重複写真のキーを作成（前回の写真が消えないようにする）
+            photoDatabase = photoDatabase || {};
+            const existingKeys = new Set();
+            Object.values(photoDatabase).forEach(arr => {
+                arr.forEach(f => existingKeys.add(`${f.name}_${f.size}_${f.lastModified}`));
+            });
 
+            let addedCount = 0;
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
+                const fileKey = `${file.name}_${file.size}_${file.lastModified}`;
+                if (existingKeys.has(fileKey)) {
+                    continue; // 既にストック済みの同一写真はスキップ
+                }
+
                 const dateKey = await extractDateFromPhoto(file);
-                
                 if (!photoDatabase[dateKey]) photoDatabase[dateKey] = [];
                 photoDatabase[dateKey].push(file);
+                existingKeys.add(fileKey);
+                addedCount++;
 
-                processedCount++;
-                if (processedCount % 5 === 0 || processedCount === files.length) {
-                    loadingEl.innerText = `写真の日時を解析中... (${processedCount}/${files.length}枚)`;
+                if (i % 5 === 0 || i === files.length - 1) {
+                    loadingEl.innerText = `写真の日時を解析中... (${i + 1}/${files.length}枚)`;
                 }
             }
 
@@ -968,8 +1040,9 @@
             
             const totalStocked = Object.values(photoDatabase).reduce((sum, arr) => sum + arr.length, 0);
             const dateList = Object.keys(photoDatabase).sort((a, b) => new Date(b) - new Date(a));
-            statusEl.innerText = `✓ ${totalStocked}枚の写真をストックしました (${dateList.length}日分)`;
+            statusEl.innerText = `✓ ${totalStocked}枚の写真をストックしました (累計 ${dateList.length}日分)`;
 
+            previewTags.innerHTML = '';
             dateList.forEach(d => {
                 const tag = document.createElement('span');
                 tag.className = 'bg-pink-100 text-pink-700 px-2 py-0.5 rounded text-[10px] font-bold';
@@ -978,8 +1051,10 @@
             });
             previewSection.classList.remove('hidden');
             
+            // inputのvalueをクリアして、同じ写真や新しい写真を何度でも追加選択可能にする
+            e.target.value = '';
+
             isPhotosReady = true;
-            checkReadyState();
         });
 
         // ==========================================
