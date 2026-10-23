@@ -194,9 +194,12 @@
                             <p class="text-[11px] text-amber-700 mb-2 leading-relaxed">
                                 レコード会社の方針等によりApple公式試聴が提供されていません。以下の外部アプリでフル音源を再生できます：
                             </p>
-                            <div class="flex items-center space-x-2">
+                            <div class="flex items-center flex-wrap gap-2">
                                 <a id="spotify-link-btn" href="#" target="_blank" rel="noopener noreferrer" class="bg-green-600 hover:bg-green-700 text-white font-bold px-2.5 py-1.5 rounded-lg text-[11px] flex items-center shadow-xs transition active:scale-95">
                                     <span class="mr-1">🟢</span> Spotifyで聴く
+                                </a>
+                                <a id="applemusic-link-btn" href="#" target="_blank" rel="noopener noreferrer" class="bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white font-bold px-2.5 py-1.5 rounded-lg text-[11px] flex items-center shadow-xs transition active:scale-95">
+                                    <span class="mr-1">🍎</span> Apple Musicで聴く
                                 </a>
                                 <a id="youtube-link-btn" href="#" target="_blank" rel="noopener noreferrer" class="bg-red-600 hover:bg-red-700 text-white font-bold px-2.5 py-1.5 rounded-lg text-[11px] flex items-center shadow-xs transition active:scale-95">
                                     <span class="mr-1">📺</span> YouTubeで探す
@@ -1738,8 +1741,10 @@
             const query = `${track || ''} ${artist || ''}`.trim();
             const spotifyBtn = document.getElementById('spotify-link-btn');
             const youtubeBtn = document.getElementById('youtube-link-btn');
+            const applemusicBtn = document.getElementById('applemusic-link-btn');
             if (spotifyBtn) spotifyBtn.href = `https://open.spotify.com/search/${encodeURIComponent(query)}`;
             if (youtubeBtn) youtubeBtn.href = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+            if (applemusicBtn) applemusicBtn.href = `https://music.apple.com/jp/search?term=${encodeURIComponent(query)}`;
         }
 
         async function playTrack(tIndex) {
