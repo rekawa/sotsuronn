@@ -112,14 +112,17 @@
 
                 <!-- アプリのメイン画面（プレーヤー） -->
                 <div id="player-section" class="hidden pb-10">
-                    <!-- ナビゲーションモード切替 -->
+                    <!-- ナビゲーションモード切替 (3モード: 写真のある日 / 履歴のある日 / すべての日) -->
                     <div class="flex items-center justify-between mb-2.5 px-1">
-                        <div class="flex items-center space-x-1 bg-gray-200 p-0.5 rounded-lg text-[11px] font-bold">
-                            <button id="mode-photos-only-btn" class="px-2.5 py-1 rounded-md bg-white text-blue-600 shadow-xs transition">
+                        <div class="flex items-center space-x-1 bg-gray-200 p-0.5 rounded-lg text-[10px] font-bold">
+                            <button id="mode-photos-btn" class="px-2 py-1 rounded-md bg-white text-blue-600 shadow-xs transition whitespace-nowrap">
                                 📸 写真のある日
                             </button>
-                            <button id="mode-all-dates-btn" class="px-2.5 py-1 rounded-md text-gray-600 hover:text-gray-900 transition">
-                                📅 すべての日付
+                            <button id="mode-history-btn" class="px-2 py-1 rounded-md text-gray-600 hover:text-gray-900 transition whitespace-nowrap">
+                                🎵 履歴のある日
+                            </button>
+                            <button id="mode-all-btn" class="px-2 py-1 rounded-md text-gray-600 hover:text-gray-900 transition whitespace-nowrap">
+                                📅 すべての日
                             </button>
                         </div>
                         <span id="nav-date-index" class="text-[11px] text-gray-500 font-medium">1 / 1日</span>
@@ -147,11 +150,25 @@
 
                     <!-- 写真表示エリア -->
                     <div id="photo-container" class="relative w-full h-72 bg-gray-950 rounded-2xl overflow-hidden shadow-md mb-2 flex items-center justify-center text-white">
-                        <img id="photo-blur-layer" class="absolute inset-0 w-full h-full object-cover filter blur-xl brightness-50 z-0 hidden" alt="背景">
-                        <img id="photo-main-layer" class="relative w-full h-full object-contain z-10 hidden" alt="思い出写真">
+                        <img id="photo-blur-layer" class="absolute inset-0 w-full h-full object-cover filter blur-xl brightness-50 z-0 hidden" alt="">
+                        <img id="photo-main-layer" class="relative w-full h-full object-contain z-10 hidden transition-opacity duration-300" alt="">
+                        
+                        <!-- 読み込み中スピナー -->
+                        <div id="photo-loading-layer" class="hidden flex flex-col items-center justify-center z-20">
+                            <div class="inline-block animate-spin rounded-full h-7 w-7 border-2 border-white/80 border-t-transparent mb-2"></div>
+                            <span class="text-xs text-gray-200 font-medium">写真を読み込み中...</span>
+                        </div>
+
+                        <!-- 写真なしレイヤー -->
                         <div id="photo-empty-layer" class="text-center px-4 z-10">
                             <span class="text-3xl block mb-1.5">📸</span>
                             <p class="text-gray-300 text-xs font-medium">この日の写真はありませんでした<br><span class="text-[11px] text-gray-400">前後の日付に移動してみてください</span></p>
+                        </div>
+
+                        <!-- プレビュー非対応エラーレイヤー -->
+                        <div id="photo-error-layer" class="hidden text-center px-4 z-10">
+                            <span class="text-3xl block mb-1.5">🖼️</span>
+                            <p class="text-gray-300 text-xs font-medium">この写真の表示形式は非対応です<br><span class="text-[11px] text-gray-400">（JPEGまたはPNG形式の写真を推奨します）</span></p>
                         </div>
                     </div>
 
@@ -541,8 +558,9 @@
             if (!title) return '';
             return title
                 .replace(/[\(\[\{（［【〔〈《「『].*?[\)\]\}）］】〕〉》」』]/g, ' ')
-                .replace(/\s*-\s*(remaster(ed)?|version|ver|mix|live|instrumental|edit|bonus|single|radio|original|acoustic|tv|theme|opening|ending).*$/i, ' ')
-                .replace(/\s*-\s*.*$/, ' ')
+                // ハイフン前後のキーワードサフィックスのみを除去 (Bye-Good-Bye等の正式タイトルは壊さない)
+                .replace(/\s+-\s+(remaster(ed)?(\s+\d+)?|version|ver\.?|mix|live|instrumental|edit|bonus|single|radio(\s+edit)?|original|acoustic|tv(\s+size)?|theme|opening|ending).*$/i, ' ')
+                .replace(/\s+-\s+from\s+.*$/i, ' ')
                 .replace(/[〜～].*?[〜～]/g, ' ')
                 .replace(/[〜～].*$/, ' ')
                 .replace(/[!！?？+＋/／&＆]/g, ' ')
@@ -550,34 +568,80 @@
                 .trim();
         }
 
-        // 主要アーティストの英語・日本語表記エイリアス辞書
-        const ARTIST_ALIASES = {
-            'chanmina': 'ちゃんみな',
-            'ちゃんみな': 'chanmina',
-            'sakanaction': 'さかなくしょん',
-            'サカナクション': 'sakanaction',
-            'さかなくしょん': 'sakanaction',
+        // コラボ相手の分割 (スペース単体では分割しない！)
+        function extractSubArtists(artistStr) {
+            if (!artistStr) return [];
+            const parts = artistStr.split(/[\/,，、×&＆+]|\s+(?:feat|featuring|with|prod|x|vs)\.?\s+/i)
+                .map(p => p.trim())
+                .filter(p => p.length > 0);
+            return [...new Set(parts)];
+        }
+
+        function normalizeStr(s) {
+            if (!s) return '';
+            return String(s)
+                .toLowerCase()
+                .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+                .replace(/[\u30a1-\u30f6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+                .replace(/['’‘"`“”:\s\-_・,，、。\(\)\[\]「」『』/／~〜\\&＆+＋!！?？]/g, '');
+        }
+
+        // 主要アーティストの英語・日本語表記エイリアス辞書 (normalizeStrキーと値にマップ)
+        const RAW_ARTIST_ALIASES = {
+            'chanmina': 'ちゃんみな', 'ちゃんみな': 'chanmina',
+            'sakanaction': 'さかなくしょん', 'サカナクション': 'sakanaction',
             'radwimps': 'らっどうぃんぷす',
-            'king gnu': 'きんぐぬー',
-            'kinggnu': 'きんぐぬー',
-            'official hige dandism': 'おふぃしゃるひげだんでぃずむ',
-            'official髭男dism': 'おふぃしゃるひげだんでぃずむ',
-            'aimyon': 'あいみょん',
-            'あいみょん': 'aimyon',
-            'vaundy': 'ばうんでぃ',
-            'fujii kaze': 'ふじいかぜ',
-            'fujiikaze': 'ふじいかぜ',
-            '藤井風': 'ふじいかぜ',
-            'yoasobi': 'よあそび',
-            'ヨアソビ': 'yoasobi',
-            'yonezu kenshi': 'よねづけんし',
-            'kenshi yonezu': 'よねづけんし',
-            '米津玄師': 'よねづけんし',
-            'be:first': 'befirst',
-            'befirst': 'be:first',
-            'my hair is bad': 'まいへあいずばっど',
-            'myhairisbad': 'まいへあいずばっど'
+            'king gnu': 'きんぐぬー', 'キングヌー': 'king gnu',
+            'official hige dandism': 'おふぃしゃるひげだんでぃずむ', 'official髭男dism': 'おふぃしゃるひげだんでぃずむ', 'ヒゲダン': 'official髭男dism',
+            'aimyon': 'あいみょん', 'あいみょん': 'aimyon',
+            'vaundy': 'ばうんでぃ', 'バウンディ': 'vaundy',
+            'fujii kaze': 'ふじいかぜ', '藤井風': 'fujii kaze',
+            'yoasobi': 'よあそび', 'ヨアソビ': 'yoasobi',
+            'yonezu kenshi': 'よねづけんし', 'kenshi yonezu': 'よねづけんし', '米津玄師': 'kenshi yonezu',
+            'be:first': 'befirst', 'befirst': 'be:first', 'ビーファースト': 'be:first',
+            'my hair is bad': 'まいへあいずばっど', 'マイヘア': 'my hair is bad',
+            'mrs. green apple': 'みせすぐりーんあっぷる', 'mrs green apple': 'みせすぐりーんあっぷる', 'ミセス': 'mrs. green apple',
+            'sekai no owari': 'せかいのおわり', 'セカオワ': 'sekai no owari',
+            'bump of chicken': 'ばんぷおぶちきん', 'バンプ': 'bump of chicken',
+            'one ok rock': 'わんおくろっく', 'ワンオク': 'one ok rock',
+            'back number': 'ばっくなんばー', 'バックナンバー': 'back number',
+            'gen hoshino': 'ほしのげん', '星野源': 'gen hoshino',
+            'hikaru utada': 'うただひかる', 'utada hikaru': 'うただひかる', '宇多田ヒカル': 'hikaru utada',
+            'ado': 'あど', 'アド': 'ado',
+            'eve': 'いぶ', 'イブ': 'eve',
+            'zutomayo': 'ずっとまよなかでいいのに', 'ずっと真夜中でいいのに。': 'zutomayo',
+            'yorushika': 'よるしか', 'ヨルシカ': 'yorushika',
+            'creepy nuts': 'くりーぴーなっつ', 'クリーピーナッツ': 'creepy nuts',
+            'da-ice': 'だいす', 'ダイス': 'da-ice',
+            'jo1': 'じぇいおーわん', 'ジェイオーワン': 'jo1',
+            'ini': 'あいえぬあい', 'アイエヌアイ': 'ini',
+            'niziu': 'にじゅー', 'ニジュー': 'niziu',
+
+            // 洋楽 / K-POP
+            'taylor swift': 'ていらーすうぃふと', 'テイラー・スウィフト': 'taylor swift', 'テイラースウィフト': 'taylor swift',
+            'ed sheeran': 'えどしーらん', 'エド・シーラン': 'ed sheeran', 'エドシーラン': 'ed sheeran',
+            'bruno mars': 'ぶるーのまーず', 'ブルーノ・マーズ': 'bruno mars', 'ブルーノマーズ': 'bruno mars',
+            'billie eilish': 'びりーあいりっしゅ', 'ビリー・アイリッシュ': 'billie eilish',
+            'lady gaga': 'れでぃーがが', 'レディー・ガガ': 'lady gaga',
+            'maroon 5': 'まるーん5', 'マルーン5': 'maroon 5',
+            'the weeknd': 'ざうぃーくえんど', 'ザ・ウィークエンド': 'the weeknd',
+            'ariana grande': 'ありあなぐらんで', 'アリアナ・グランデ': 'ariana grande',
+            'justin bieber': 'じゃすてぃんびーばー', 'ジャスティン・ビーバー': 'justin bieber',
+            'coldplay': 'こーるどぷれい', 'コールドプレイ': 'coldplay',
+            'avicii': 'あゔぃーちー', 'アヴィーチー': 'avicii',
+            'bts': 'ぼうだんしょうねんだん', '防弾少年団': 'bts',
+            'twice': 'とぅわいす', 'トゥワイス': 'twice',
+            'blackpink': 'ぶらっくぴんく', 'ブラックピンク': 'blackpink',
+            'newjeans': 'にゅーじーんず', 'ニュージーンズ': 'newjeans',
+            'le sserafim': 'るせらふぃむ', 'ルセラフィム': 'le sserafim',
+            'ive': 'あいゔ', 'アイヴ': 'ive',
+            'aespa': 'えすぱ', 'エスパ': 'aespa'
         };
+
+        const ARTIST_ALIASES = {};
+        for (const [k, v] of Object.entries(RAW_ARTIST_ALIASES)) {
+            ARTIST_ALIASES[normalizeStr(k)] = normalizeStr(v);
+        }
 
         const ROMAJI_TABLE = {
             "kya":"きゃ","kyu":"きゅ","kyo":"きょ",
@@ -619,20 +683,15 @@
             return s;
         }
 
-        function normalizeStr(s) {
-            if (!s) return '';
-            return String(s)
-                .toLowerCase()
-                .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
-                .replace(/[\u30a1-\u30f6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60))
-                .replace(/['’‘"`“”:\s\-_・,，、。\(\)\[\]「」『』/／~〜\\&＆+＋!！?？]/g, '');
-        }
-
-        function isArtistMatched(sArtist, normTargetArtist, normPrimaryArtist) {
+        function isArtistMatched(sArtist, normTargetArtist, subArtistsNormList) {
             if (!sArtist || !normTargetArtist) return false;
             if (sArtist === normTargetArtist) return true;
             if (sArtist.includes(normTargetArtist) || normTargetArtist.includes(sArtist)) return true;
-            if (normPrimaryArtist && (sArtist === normPrimaryArtist || sArtist.includes(normPrimaryArtist) || normPrimaryArtist.includes(sArtist))) return true;
+
+            // サブアーティスト(コラボ相手)のいずれかとの一致
+            if (subArtistsNormList && subArtistsNormList.some(sub => sArtist === sub || sArtist.includes(sub) || sub.includes(sArtist))) {
+                return true;
+            }
 
             // ローマ字 -> ひらがな チェック (CHANMINA <-> ちゃんみな など)
             const hiraTarget = romajiToHiragana(normTargetArtist);
@@ -641,12 +700,19 @@
             const hiraArtist = romajiToHiragana(sArtist);
             if (hiraArtist && (normTargetArtist === hiraArtist || normTargetArtist.includes(hiraArtist) || hiraArtist.includes(normTargetArtist))) return true;
 
-            // 主要エイリアスチェック
+            // エイリアス辞書照合 (双方向)
             const alias1 = ARTIST_ALIASES[normTargetArtist];
             if (alias1) {
-                const normAlias1 = normalizeStr(alias1);
-                if (sArtist === normAlias1 || sArtist.includes(normAlias1) || normAlias1.includes(sArtist)) return true;
+                if (sArtist === alias1 || sArtist.includes(alias1) || alias1.includes(sArtist)) return true;
             }
+            const alias2 = ARTIST_ALIASES[sArtist];
+            if (alias2) {
+                if (normTargetArtist === alias2 || normTargetArtist.includes(alias2) || alias2.includes(normTargetArtist)) return true;
+            }
+
+            // 共通標準名チェック (例: Official HIGE DANDISM と Official髭男dism が共に おふぃしゃるひげだんでぃずむ にマップされている場合)
+            if (alias1 && alias2 && alias1 === alias2) return true;
+
             return false;
         }
 
@@ -1356,10 +1422,13 @@
         }
 
         document.getElementById('start-btn').addEventListener('click', () => {
-            const photoDates = Object.keys(photoDatabase).filter(d => !isDateHidden(d));
+            const photoDates = Object.keys(photoDatabase).filter(d => !isDateHidden(d) && photoDatabase[d].length > 0);
+            const historyDates = Object.keys(rawStreamingData).filter(d => !isDateHidden(d) && rawStreamingData[d].length > 0);
             
             if (photoDates.length > 0) {
                 setNavMode('photos');
+            } else if (historyDates.length > 0) {
+                setNavMode('history');
             } else {
                 setNavMode('all');
             }
@@ -1376,21 +1445,22 @@
             loadDay(currentIndex);
         });
 
-        const modePhotosBtn = document.getElementById('mode-photos-only-btn');
-        const modeAllBtn = document.getElementById('mode-all-dates-btn');
+        const modePhotosBtn = document.getElementById('mode-photos-btn');
+        const modeHistoryBtn = document.getElementById('mode-history-btn');
+        const modeAllBtn = document.getElementById('mode-all-btn');
 
         modePhotosBtn.addEventListener('click', () => setNavMode('photos', true));
+        modeHistoryBtn.addEventListener('click', () => setNavMode('history', true));
         modeAllBtn.addEventListener('click', () => setNavMode('all', true));
 
         function setNavMode(mode, refresh = false) {
             navMode = mode;
-            if (mode === 'photos') {
-                modePhotosBtn.className = "px-2.5 py-1 rounded-md bg-white text-blue-600 shadow-xs transition";
-                modeAllBtn.className = "px-2.5 py-1 rounded-md text-gray-600 hover:text-gray-900 transition";
-            } else {
-                modeAllBtn.className = "px-2.5 py-1 rounded-md bg-white text-blue-600 shadow-xs transition";
-                modePhotosBtn.className = "px-2.5 py-1 rounded-md text-gray-600 hover:text-gray-900 transition";
-            }
+            const activeClass = "px-2 py-1 rounded-md bg-white text-blue-600 shadow-xs transition whitespace-nowrap";
+            const inactiveClass = "px-2 py-1 rounded-md text-gray-600 hover:text-gray-900 transition whitespace-nowrap";
+
+            modePhotosBtn.className = (mode === 'photos') ? activeClass : inactiveClass;
+            modeHistoryBtn.className = (mode === 'history') ? activeClass : inactiveClass;
+            modeAllBtn.className = (mode === 'all') ? activeClass : inactiveClass;
 
             const curDate = activeDatesList[currentIndex];
             rebuildActiveDatesList();
@@ -1403,19 +1473,44 @@
         }
 
         function rebuildActiveDatesList() {
-            const photoDates = Object.keys(photoDatabase).filter(d => !isDateHidden(d));
-            
-            if (navMode === 'photos' && photoDates.length > 0) {
-                activeDatesList = photoDates.sort((a, b) => new Date(a) - new Date(b));
-            } else {
-                const dateSet = new Set();
-                Object.keys(rawStreamingData).forEach(d => dateSet.add(d));
-                Object.keys(photoDatabase).forEach(d => dateSet.add(d));
-                Object.keys(manualTracksData).forEach(d => dateSet.add(d));
+            const photoDates = Object.keys(photoDatabase).filter(d => !isDateHidden(d) && photoDatabase[d].length > 0);
+            const historyDates = Object.keys(rawStreamingData).filter(d => !isDateHidden(d) && rawStreamingData[d].length > 0);
 
-                activeDatesList = Array.from(dateSet)
-                    .filter(d => !isDateHidden(d))
-                    .sort((a, b) => new Date(a) - new Date(b));
+            if (navMode === 'photos') {
+                activeDatesList = photoDates.sort((a, b) => new Date(a) - new Date(b));
+            } else if (navMode === 'history') {
+                activeDatesList = historyDates.sort((a, b) => new Date(a) - new Date(b));
+            } else { // 'all' すべての日 (写真も履歴もない日も含め、カレンダーの期間すべてを連続展開)
+                const allKnownDates = [
+                    ...Object.keys(photoDatabase),
+                    ...Object.keys(rawStreamingData),
+                    ...Object.keys(manualTracksData)
+                ].filter(d => !isDateHidden(d)).sort((a, b) => new Date(a) - new Date(b));
+
+                if (allKnownDates.length > 0) {
+                    const minDate = new Date(allKnownDates[0]);
+                    const maxDate = new Date(allKnownDates[allKnownDates.length - 1]);
+                    const dateList = [];
+                    const cur = new Date(minDate);
+                    // 最小日〜最大日の全日を連続生成
+                    while (cur <= maxDate) {
+                        const y = cur.getFullYear();
+                        const m = String(cur.getMonth() + 1).padStart(2, '0');
+                        const d = String(cur.getDate()).padStart(2, '0');
+                        const dateStr = `${y}-${m}-${d}`;
+                        if (!isDateHidden(dateStr)) {
+                            dateList.push(dateStr);
+                        }
+                        cur.setDate(cur.getDate() + 1);
+                    }
+                    activeDatesList = dateList;
+                } else {
+                    const today = new Date();
+                    const y = today.getFullYear();
+                    const m = String(today.getMonth() + 1).padStart(2, '0');
+                    const d = String(today.getDate()).padStart(2, '0');
+                    activeDatesList = [`${y}-${m}-${d}`];
+                }
             }
         }
 
@@ -1488,18 +1583,17 @@
         }
 
         // ==========================================
-        // 9. iTunes API 公式音源マッチング
+        // 9. iTunes API 公式音源マッチング (包括的強化エンジン)
         // ==========================================
         async function fetchExactPreviewUrl(targetTrack, targetArtist) {
             if (!targetTrack) return null;
 
             const cleanT = cleanSongTitle(targetTrack);
-            const primaryArtist = (targetArtist || '')
-                .split(/[\s,，/／×&＆+]|\s+(?:feat|featuring|with)\.?\s+/i)[0]
-                .trim();
+            const subArtists = extractSubArtists(targetArtist);
+            const subArtistsNormList = subArtists.map(a => normalizeStr(a));
+            const primaryArtist = subArtists[0] || targetArtist;
 
             const normTargetArtist = normalizeStr(targetArtist);
-            const normPrimaryArtist = normalizeStr(primaryArtist);
             const normTargetTrack = normalizeStr(cleanT);
             const normRawTrack = normalizeStr(targetTrack);
 
@@ -1508,14 +1602,12 @@
             const queries = [
                 `${cleanT} ${targetArtist}`.trim(),
                 `${targetArtist} ${cleanT}`.trim(),
+                `${cleanT} ${primaryArtist}`.trim(),
+                `${primaryArtist} ${cleanT}`.trim(),
                 `${targetTrack} ${targetArtist}`.trim()
             ];
-            if (primaryArtist && primaryArtist !== targetArtist) {
-                queries.push(`${cleanT} ${primaryArtist}`.trim());
-                queries.push(`${primaryArtist} ${cleanT}`.trim());
-            }
 
-            const uniqueQueries = [...new Set(queries.filter(Boolean))];
+            const uniqueQueries = [...new Set(queries.filter(q => q && q.length >= 1))];
 
             function evaluateCandidate(song, rank) {
                 if (!song.previewUrl) return null;
@@ -1530,7 +1622,7 @@
                 const sCleanTrack = normalizeStr(cleanSongTitle(song.trackName));
                 const sRawTrack = normalizeStr(song.trackName);
 
-                // 1. 曲名照合 (重要ガード: 曲名が合わない場合は絶対に別曲を採用しない)
+                // 1. 曲名照合 (重要ガード: 曲名不一致は絶対に除外)
                 let titleScore = 0;
                 if (sCleanTrack === normTargetTrack || sRawTrack === normRawTrack) {
                     titleScore = 100;
@@ -1544,13 +1636,21 @@
                     return null;
                 }
 
-                // 2. アーティスト照合 (アーティスト不一致は除外)
+                // 2. アーティスト照合
                 let artistScore = 0;
+                let artistMatched = false;
                 if (sArtist === normTargetArtist) {
                     artistScore = 100;
-                } else if (isArtistMatched(sArtist, normTargetArtist, normPrimaryArtist)) {
+                    artistMatched = true;
+                } else if (isArtistMatched(sArtist, normTargetArtist, subArtistsNormList)) {
                     artistScore = 90;
-                } else {
+                    artistMatched = true;
+                } else if (!targetArtist) {
+                    artistScore = 50;
+                    artistMatched = true;
+                }
+
+                if (!artistMatched) {
                     return null;
                 }
 
@@ -1597,15 +1697,16 @@
                 } catch (e) {}
             }
 
-            // STEP 2: アーティスト Lookup フォールバック (Explicit曲や最新EP収録曲の完全救済)
+            // STEP 2: アーティスト Lookup フォールバック (Explicit曲や最新EP収録曲、アルバム埋もれ曲の完全救済)
             if (targetArtist) {
                 try {
-                    const artistSearchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(targetArtist)}&media=music&entity=musicArtist&country=JP&limit=5`;
+                    const artistQuery = primaryArtist || targetArtist;
+                    const artistSearchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(artistQuery)}&media=music&entity=musicArtist&country=JP&limit=5`;
                     const aRes = await fetch(artistSearchUrl);
                     const aData = await aRes.json();
                     
                     const matchedArtistObj = (aData.results || []).find(a => 
-                        isArtistMatched(normalizeStr(a.artistName), normTargetArtist, normPrimaryArtist)
+                        isArtistMatched(normalizeStr(a.artistName), normTargetArtist, subArtistsNormList)
                     );
 
                     if (matchedArtistObj && matchedArtistObj.artistId) {
@@ -2302,10 +2403,14 @@
         // ==========================================
         // 15. 写真表示 & スライドショー
         // ==========================================
+        let currentPhotoUrl = null;
+
         function displayPhotosForDate(dateString) {
             const mainImg = document.getElementById('photo-main-layer');
             const blurImg = document.getElementById('photo-blur-layer');
             const emptyLayer = document.getElementById('photo-empty-layer');
+            const errorLayer = document.getElementById('photo-error-layer');
+            const loadingLayer = document.getElementById('photo-loading-layer');
             const indicator = document.getElementById('slide-indicator');
             
             if (slideShowInterval) {
@@ -2315,13 +2420,13 @@
 
             indicator.innerHTML = '';
             indicator.classList.add('hidden');
+            if (errorLayer) errorLayer.classList.add('hidden');
+            if (loadingLayer) loadingLayer.classList.add('hidden');
 
             const photos = photoDatabase[dateString];
 
             if (photos && photos.length > 0) {
                 emptyLayer.classList.add('hidden');
-                mainImg.classList.remove('hidden');
-                blurImg.classList.remove('hidden');
 
                 slidePhotoIndex = 0;
                 showSlidePhoto(photos, 0);
@@ -2339,49 +2444,81 @@
             } else {
                 mainImg.classList.add('hidden');
                 blurImg.classList.add('hidden');
+                if (loadingLayer) loadingLayer.classList.add('hidden');
                 emptyLayer.classList.remove('hidden');
             }
         }
 
-        let currentPhotoUrl = null;
         async function showSlidePhoto(photos, idx) {
             const file = photos[idx];
             if (!file) return;
 
             const mainImg = document.getElementById('photo-main-layer');
             const blurImg = document.getElementById('photo-blur-layer');
-            const isHeic = file.name && /\.(heic|heif)$/i.test(file.name);
+            const emptyLayer = document.getElementById('photo-empty-layer');
+            const errorLayer = document.getElementById('photo-error-layer');
+            const loadingLayer = document.getElementById('photo-loading-layer');
 
-            // 前回の ObjectURL を解放してメモリを節約
+            // 読み込み完了前の壊れた画像アイコン表示を100%防止するため、ロード完了まで非表示に
+            mainImg.classList.add('hidden');
+            blurImg.classList.add('hidden');
+            emptyLayer.classList.add('hidden');
+            if (errorLayer) errorLayer.classList.add('hidden');
+            if (loadingLayer) loadingLayer.classList.remove('hidden');
+
+            // 前回の ObjectURL を安全に解放
             if (currentPhotoUrl) {
                 try { URL.revokeObjectURL(currentPhotoUrl); } catch (e) {}
                 currentPhotoUrl = null;
             }
 
+            // 画像ロード完了イベントハンドラ
+            mainImg.onload = function() {
+                if (loadingLayer) loadingLayer.classList.add('hidden');
+                if (errorLayer) errorLayer.classList.add('hidden');
+                mainImg.classList.remove('hidden');
+                blurImg.classList.remove('hidden');
+            };
+
+            // 画像ロードエラーハンドラ (壊れた画像アイコンを絶対に非表示にしてエラー案内を表示)
+            mainImg.onerror = function() {
+                mainImg.classList.add('hidden');
+                blurImg.classList.add('hidden');
+                if (loadingLayer) loadingLayer.classList.add('hidden');
+                if (errorLayer) errorLayer.classList.remove('hidden');
+            };
+
+            const isHeic = file.name && /\.(heic|heif)$/i.test(file.name);
+
             // HEICかつheic2anyが利用可能な場合
             if (isHeic && window.heic2any) {
                 try {
-                    const blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
-                    currentPhotoUrl = URL.createObjectURL(blob);
+                    let blobResult = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
+                    // heic2anyは複数画像コンテナで配列を返すことがあるため先頭を取得
+                    const jpegBlob = Array.isArray(blobResult) ? blobResult[0] : blobResult;
+                    currentPhotoUrl = URL.createObjectURL(jpegBlob);
                     mainImg.src = currentPhotoUrl;
                     blurImg.src = currentPhotoUrl;
                     return;
                 } catch (e) {
-                    console.warn("heic2any fallback to direct URL:", e);
+                    console.warn("heic2any conversion fallback to direct URL:", e);
                 }
             }
 
-            // JPEG, PNG, WebP, GIF, あるいはSafari/AppleネイティブHEICをURL.createObjectURLで即座に直接描画
+            // JPEG, PNG, WebP, GIF, あるいはSafari/AppleネイティブHEIC対応環境での直接高速描画
             try {
                 currentPhotoUrl = URL.createObjectURL(file);
                 mainImg.src = currentPhotoUrl;
                 blurImg.src = currentPhotoUrl;
             } catch (err) {
-                // 万一のフォールバック (FileReader)
+                // 万一のFileReaderフォールバック
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     mainImg.src = e.target.result;
                     blurImg.src = e.target.result;
+                };
+                reader.onerror = function() {
+                    mainImg.onerror();
                 };
                 reader.readAsDataURL(file);
             }
