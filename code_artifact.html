@@ -171,7 +171,7 @@
                     </div>
 
                     <!-- 写真表示エリア (真のクロスフェード対応二重レイヤー構造) -->
-                    <div id="photo-container" class="relative w-full h-72 bg-gray-950 rounded-2xl overflow-hidden shadow-md mb-2 flex items-center justify-center text-white">
+                    <div id="photo-container" class="relative w-full h-72 bg-gray-950 rounded-2xl overflow-hidden shadow-md mb-2 flex items-center justify-center text-white select-none">
                         <!-- 背景ブラー (背面: z-index 0, 前面: z-index 5) -->
                         <img id="photo-blur-a" style="z-index: 0;" class="absolute inset-0 w-full h-full object-cover filter blur-xl brightness-50 opacity-0 pointer-events-none" alt="">
                         <img id="photo-blur-b" style="z-index: 5;" class="absolute inset-0 w-full h-full object-cover filter blur-xl brightness-50 opacity-0 pointer-events-none" alt="">
@@ -181,11 +181,11 @@
                         <img id="photo-main-b" style="z-index: 20;" class="absolute inset-0 w-full h-full object-contain opacity-0 pointer-events-none" alt="">
                         
                         <!-- 手動写真ナビゲーションボタン (前へ / 次へ) & 枚数バッジ (z-index: 30) -->
-                        <button id="photo-prev-btn" class="absolute left-2.5 top-1/2 -translate-y-1/2 z-30 bg-black/40 hover:bg-black/70 text-white rounded-full w-8 h-8 flex items-center justify-center transition active:scale-90 shadow backdrop-blur-xs hidden cursor-pointer" title="前の写真へ">
-                            <span class="text-sm font-bold">‹</span>
+                        <button id="photo-prev-btn" class="absolute left-2.5 top-1/2 -translate-y-1/2 z-30 bg-black/50 hover:bg-black/80 text-white rounded-full w-9 h-9 flex items-center justify-center transition active:scale-90 shadow-md backdrop-blur-xs hidden cursor-pointer select-none" title="前の写真へ">
+                            <span class="text-base font-bold leading-none select-none">‹</span>
                         </button>
-                        <button id="photo-next-btn" class="absolute right-2.5 top-1/2 -translate-y-1/2 z-30 bg-black/40 hover:bg-black/70 text-white rounded-full w-8 h-8 flex items-center justify-center transition active:scale-90 shadow backdrop-blur-xs hidden cursor-pointer" title="次の写真へ">
-                            <span class="text-sm font-bold">›</span>
+                        <button id="photo-next-btn" class="absolute right-2.5 top-1/2 -translate-y-1/2 z-30 bg-black/50 hover:bg-black/80 text-white rounded-full w-9 h-9 flex items-center justify-center transition active:scale-90 shadow-md backdrop-blur-xs hidden cursor-pointer select-none" title="次の写真へ">
+                            <span class="text-base font-bold leading-none select-none">›</span>
                         </button>
                         <div id="photo-progress-badge" class="absolute top-2.5 right-2.5 z-30 bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs hidden pointer-events-none">
                             1 / 1
@@ -839,11 +839,43 @@
                 const savedManual = await localforage.getItem('saved_manual_tracks');
                 const savedDeleted = await localforage.getItem('saved_deleted_tracks');
                 const savedHidden = await localforage.getItem('saved_hidden_settings');
+                const savedPhotos = await localforage.getItem('saved_photo_database');
 
                 if (savedStreaming) rawStreamingData = savedStreaming;
                 if (savedManual) manualTracksData = savedManual;
                 if (savedDeleted) deletedTracksData = savedDeleted;
                 if (savedHidden) hiddenSettings = savedHidden;
+
+                // 保存された写真データベースの復元
+                if (savedPhotos && typeof savedPhotos === 'object') {
+                    photoDatabase = savedPhotos;
+                    const totalStocked = Object.values(photoDatabase).reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+                    if (totalStocked > 0) {
+                        isPhotosReady = true;
+                        const statusEl = document.getElementById('photo-status');
+                        const previewSection = document.getElementById('photo-summary-preview');
+                        const previewTags = document.getElementById('photo-summary-tags');
+                        const addMoreArea = document.getElementById('photo-add-more-area');
+                        const dateList = Object.keys(photoDatabase).sort((a, b) => new Date(b) - new Date(a));
+
+                        if (statusEl) {
+                            statusEl.classList.remove('hidden');
+                            statusEl.innerText = `✓ ${totalStocked}枚の写真を復元しました (累計 ${dateList.length}日分)`;
+                        }
+                        if (previewTags) {
+                            previewTags.innerHTML = '';
+                            dateList.forEach(d => {
+                                const tag = document.createElement('span');
+                                tag.className = 'bg-pink-100 text-pink-700 px-2 py-0.5 rounded text-[10px] font-bold';
+                                tag.innerText = `${d} (${photoDatabase[d].length}枚)`;
+                                previewTags.appendChild(tag);
+                            });
+                        }
+                        if (previewSection) previewSection.classList.remove('hidden');
+                        if (addMoreArea) addMoreArea.classList.remove('hidden');
+                        checkReadyState();
+                    }
+                }
 
                 Object.keys(rawStreamingData).forEach(d => {
                     if (!Array.isArray(rawStreamingData[d])) {
@@ -1386,10 +1418,17 @@
             isPhotosReady = true;
             checkReadyState();
 
+            // 写真データベースを IndexedDB に永続化 (リロードやタブ切り替えでも消えないようにする)
+            try {
+                await localforage.setItem('saved_photo_database', photoDatabase);
+            } catch (storageErr) {
+                console.warn("写真のIndexedDB保存警告（容量上限の可能性）:", storageErr);
+            }
+
             if (isFromPlayer) {
                 // プレーヤー画面から追加された場合
                 const currentDateStr = (activeDatesList && activeDatesList[currentIndex]) ? activeDatesList[currentIndex] : null;
-                filterActiveDates();
+                rebuildActiveDatesList();
                 if (currentDateStr) {
                     const newIdx = activeDatesList.indexOf(currentDateStr);
                     if (newIdx !== -1) {
@@ -1398,6 +1437,7 @@
                         currentIndex = 0;
                     }
                 }
+                currentDisplayedPhotoDate = null; // 写真追加時は現在の表示を強制リフレッシュ
                 loadDay(currentIndex);
                 showToast(`✓ 新たに ${addedCount} 枚の写真を追加しました！(累計 ${totalStocked}枚)`);
             }
@@ -1670,16 +1710,25 @@
         modeAllBtn.addEventListener('click', () => setNavMode('all', true));
 
         function setNavMode(mode, refresh = false) {
+            const prevMode = navMode;
             navMode = mode;
+
+            const curDate = (activeDatesList && activeDatesList[currentIndex]) ? activeDatesList[currentIndex] : null;
+            rebuildActiveDatesList();
+
+            if (activeDatesList.length === 0) {
+                const label = (mode === 'photos') ? '写真のある日' : (mode === 'history' ? '視聴履歴のある日' : '日付');
+                showToast(`該当する${label}がまだ登録されていません`);
+                navMode = prevMode;
+                rebuildActiveDatesList();
+            }
+
             const activeClass = "px-2 py-1 rounded-md bg-white text-blue-600 shadow-xs transition whitespace-nowrap";
             const inactiveClass = "px-2 py-1 rounded-md text-gray-600 hover:text-gray-900 transition whitespace-nowrap";
 
-            modePhotosBtn.className = (mode === 'photos') ? activeClass : inactiveClass;
-            modeHistoryBtn.className = (mode === 'history') ? activeClass : inactiveClass;
-            modeAllBtn.className = (mode === 'all') ? activeClass : inactiveClass;
-
-            const curDate = activeDatesList[currentIndex];
-            rebuildActiveDatesList();
+            modePhotosBtn.className = (navMode === 'photos') ? activeClass : inactiveClass;
+            modeHistoryBtn.className = (navMode === 'history') ? activeClass : inactiveClass;
+            modeAllBtn.className = (navMode === 'all') ? activeClass : inactiveClass;
 
             if (refresh && activeDatesList.length > 0) {
                 let idx = curDate ? activeDatesList.indexOf(curDate) : -1;
@@ -2126,7 +2175,7 @@
             await localforage.setItem('saved_deleted_tracks', deletedTracksData);
             await localforage.setItem('saved_manual_tracks', manualTracksData);
 
-            loadDay(currentIndex);
+            refreshDayMusic();
         }
 
         async function addSongToCurrentDay(trackName, artistName, previewUrl) {
@@ -2154,9 +2203,34 @@
 
             await localforage.setItem('saved_manual_tracks', manualTracksData);
             
-            loadDay(currentIndex);
             const updatedTracks = getTracksForDate(dateStr);
-            playTrack(updatedTracks.length - 1);
+            refreshDayMusic(updatedTracks.length - 1);
+        }
+
+        function refreshDayMusic(targetTrackIndex = null) {
+            const dateStr = activeDatesList[currentIndex];
+            const tracks = getTracksForDate(dateStr);
+            const hitsBanner = document.getElementById('hit-songs-suggest-banner');
+            const hitsBannerTitle = document.getElementById('hit-songs-banner-title');
+
+            if (tracks.length === 0) {
+                hitsBanner.classList.remove('hidden');
+                const wInfo = getBillboardWeekFromDate(dateStr);
+                hitsBannerTitle.innerText = `当時(${wInfo.year}年${wInfo.month}月 第${wInfo.week}週)のBillboard JAPAN週間TOP10`;
+                
+                document.getElementById('track-name').innerText = '曲が未登録です';
+                document.getElementById('artist-name').innerText = '下のボタンから思い出の曲を追加してください';
+                document.getElementById('track-source-label').innerText = '🎵 楽曲未選択';
+                document.getElementById('audio-player').src = '';
+                document.getElementById('playing-badge').classList.add('hidden');
+                renderPlaylistUI();
+            } else {
+                hitsBanner.classList.add('hidden');
+                const nextIdx = (targetTrackIndex !== null && targetTrackIndex >= 0 && targetTrackIndex < tracks.length)
+                    ? targetTrackIndex
+                    : Math.min(activeTrackIndex, tracks.length - 1);
+                playTrack(nextIdx);
+            }
         }
 
         // ==========================================
@@ -2654,10 +2728,13 @@
 
 
         // ==========================================
-        // 15. 写真表示 & スライドショー (前面オーバーレイ・ディゾルブによる完全シームレス遷移)
+        // 15. 写真表示 & スライドショー (非同期キャンセル・URLキャッシュ・PageVisibility完全対応)
         // ==========================================
         let currentPhotoSrc = null;
         let fadeTransitionTimer = null;
+        let photoLoadRequestId = 0;              // 非同期レースコンディション防止用リクエストカウンタ
+        let currentDisplayedPhotoDate = null;    // 現在表示中の日付（不要な強制再初期化を防止）
+        const photoBlobUrlCache = new WeakMap(); // File -> Blob URL キャッシュ（メモリ枯渇防止 & 即時復元）
 
         function updatePhotoNavUI(photos, currentIdx) {
             const prevBtn = document.getElementById('photo-prev-btn');
@@ -2686,6 +2763,8 @@
             }
             if (photos && photos.length > 1) {
                 slideShowInterval = setInterval(() => {
+                    // タブがバックグラウンドの場合はタイマー処理をスキップ
+                    if (document.hidden) return;
                     slidePhotoIndex = (slidePhotoIndex + 1) % photos.length;
                     showSlidePhoto(photos, slidePhotoIndex, true);
                     renderSlideDots(photos.length, slidePhotoIndex);
@@ -2694,7 +2773,45 @@
             }
         }
 
-        function displayPhotosForDate(dateString) {
+        async function getPhotoUrl(file) {
+            if (!file) return null;
+            if (photoBlobUrlCache.has(file)) {
+                return photoBlobUrlCache.get(file);
+            }
+
+            let url = null;
+            const isHeic = file.name && /\.(heic|heif)$/i.test(file.name);
+
+            if (isHeic && window.heic2any) {
+                try {
+                    let blobResult = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
+                    const jpegBlob = Array.isArray(blobResult) ? blobResult[0] : blobResult;
+                    url = URL.createObjectURL(jpegBlob);
+                } catch (e) {
+                    console.warn("heic2any conversion fallback:", e);
+                }
+            }
+
+            if (!url) {
+                try {
+                    url = URL.createObjectURL(file);
+                } catch (err) {
+                    return new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.onerror = () => resolve(null);
+                        reader.readAsDataURL(file);
+                    });
+                }
+            }
+
+            if (url) {
+                photoBlobUrlCache.set(file, url);
+            }
+            return url;
+        }
+
+        function displayPhotosForDate(dateString, forceRefresh = false) {
             const mainA = document.getElementById('photo-main-a');
             const mainB = document.getElementById('photo-main-b');
             const blurA = document.getElementById('photo-blur-a');
@@ -2703,7 +2820,13 @@
             const errorLayer = document.getElementById('photo-error-layer');
             const loadingLayer = document.getElementById('photo-loading-layer');
             const indicator = document.getElementById('slide-indicator');
-            
+
+            // 同一日付でかつ強制更新フラグがない場合は、既存のスライドショー表示を滑らかに維持
+            if (!forceRefresh && currentDisplayedPhotoDate === dateString && photoDatabase[dateString]?.length > 0) {
+                return;
+            }
+            currentDisplayedPhotoDate = dateString;
+
             if (slideShowInterval) {
                 clearInterval(slideShowInterval);
                 slideShowInterval = null;
@@ -2724,7 +2847,7 @@
                 emptyLayer.classList.add('hidden');
 
                 slidePhotoIndex = 0;
-                showSlidePhoto(photos, 0, false); // 初回ロード (isSlideSwitch = false)
+                showSlidePhoto(photos, 0, false);
                 updatePhotoNavUI(photos, 0);
 
                 if (photos.length > 1) {
@@ -2747,8 +2870,13 @@
         }
 
         async function showSlidePhoto(photos, idx, isSlideSwitch = false) {
-            const file = photos[idx];
+            if (!photos || photos.length === 0) return;
+            const safeIdx = ((idx % photos.length) + photos.length) % photos.length;
+            const file = photos[safeIdx];
             if (!file) return;
+
+            // リクエストIDをインクリメント（連打・高速切り替え時のレースコンディションを完全根絶）
+            const reqId = ++photoLoadRequestId;
 
             const emptyLayer = document.getElementById('photo-empty-layer');
             const errorLayer = document.getElementById('photo-error-layer');
@@ -2757,56 +2885,38 @@
             emptyLayer.classList.add('hidden');
             if (errorLayer) errorLayer.classList.add('hidden');
 
-            // 初回ロード時のみスピナーを表示。定期スライドショー切り替え時は画面を一切暗転させない！
-            if (!isSlideSwitch && loadingLayer) {
+            // 初回表示時のみスピナーを表示。切り替え時は画面を暗転させない！
+            if (!isSlideSwitch && !currentPhotoSrc && loadingLayer) {
                 loadingLayer.classList.remove('hidden');
             }
 
-            let nextUrl = null;
-            const isHeic = file.name && /\.(heic|heif)$/i.test(file.name);
+            const nextUrl = await getPhotoUrl(file);
 
-            if (isHeic && window.heic2any) {
-                try {
-                    let blobResult = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
-                    const jpegBlob = Array.isArray(blobResult) ? blobResult[0] : blobResult;
-                    nextUrl = URL.createObjectURL(jpegBlob);
-                } catch (e) {
-                    console.warn("heic2any conversion fallback:", e);
-                }
-            }
+            // 待機中に次の写真要求が発生していたら即座に破棄
+            if (reqId !== photoLoadRequestId) return;
 
             if (!nextUrl) {
-                try {
-                    nextUrl = URL.createObjectURL(file);
-                } catch (err) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        applyPhotoToLayers(e.target.result, isSlideSwitch);
-                    };
-                    reader.onerror = function() {
-                        handlePhotoLoadError(isSlideSwitch);
-                    };
-                    reader.readAsDataURL(file);
-                    return;
-                }
+                handlePhotoLoadError(photos, safeIdx, isSlideSwitch);
+                return;
             }
 
-            if (nextUrl) {
-                // 画像を裏でプリロードしてデコード完了後に滑らかにクロスフェード
-                const preload = new Image();
-                preload.onload = function() {
-                    applyPhotoToLayers(nextUrl, isSlideSwitch);
-                };
-                preload.onerror = function() {
-                    handlePhotoLoadError(isSlideSwitch);
-                };
-                preload.src = nextUrl;
-            }
+            // 画像を裏でプリロードしてデコード完了後に滑らかにクロスフェード
+            const preload = new Image();
+            preload.onload = function() {
+                if (reqId !== photoLoadRequestId) return;
+                applyPhotoToLayers(nextUrl, isSlideSwitch);
+            };
+            preload.onerror = function() {
+                if (reqId !== photoLoadRequestId) return;
+                console.warn("画像の読み込みエラー:", file.name);
+                handlePhotoLoadError(photos, safeIdx, isSlideSwitch);
+            };
+            preload.src = nextUrl;
         }
 
         function applyPhotoToLayers(newSrc, isSlideSwitch) {
-            const mainA = document.getElementById('photo-main-a'); // 背面ベース (z-index: 10)
-            const mainB = document.getElementById('photo-main-b'); // 前面オーバーレイ (z-index: 20)
+            const mainA = document.getElementById('photo-main-a'); // 背面 (z-index: 10)
+            const mainB = document.getElementById('photo-main-b'); // 前面 (z-index: 20)
             const blurA = document.getElementById('photo-blur-a'); // 背面ブラー (z-index: 0)
             const blurB = document.getElementById('photo-blur-b'); // 前面ブラー (z-index: 5)
             const loadingLayer = document.getElementById('photo-loading-layer');
@@ -2821,7 +2931,7 @@
             }
 
             if (!isSlideSwitch || !currentPhotoSrc) {
-                // 初回表示 または 日付変更時: 背面を即時表示し前面は非表示
+                // 初回表示 または 日付変更時: 即時表示
                 mainA.style.transition = 'none';
                 blurA.style.transition = 'none';
                 mainB.style.transition = 'none';
@@ -2841,9 +2951,8 @@
                 return;
             }
 
-            // スライドショー定期切り替え: 前面オーバーレイ方式
+            // スライドショー定期切り替え・手動切り替え: 前面オーバーレイ方式
             // 背面(A)は 100% 不透明のまま維持！前面(B)に新画像をセットして 0 -> 1 へ滑らかにフェードイン
-            // これにより黒背景が透けること（暗転）は絶対に100%起きない！
             mainB.style.transition = 'none';
             blurB.style.transition = 'none';
             mainB.style.opacity = '0';
@@ -2851,17 +2960,16 @@
             mainB.src = newSrc;
             blurB.src = newSrc;
 
-            // ブラウザの再描画フレームに合わせて前面フェードイン開始 (0.8秒)
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    mainB.style.transition = 'opacity 0.8s ease-in-out';
-                    blurB.style.transition = 'opacity 0.8s ease-in-out';
-                    mainB.style.opacity = '1';
-                    blurB.style.opacity = '1';
-                });
-            });
+            // 強制リフローを実行してスタイル変更を同期フラッシュ
+            void mainB.offsetWidth;
 
-            // 0.8秒のフェードイン完了後、背面(A)を新画像に差し替えて前面(B)をリセット
+            // 前面フェードイン開始 (0.7秒)
+            mainB.style.transition = 'opacity 0.7s ease-in-out';
+            blurB.style.transition = 'opacity 0.7s ease-in-out';
+            mainB.style.opacity = '1';
+            blurB.style.opacity = '1';
+
+            // フェードイン完了後、背面(A)を新画像に差し替えて前面(B)をリセット
             fadeTransitionTimer = setTimeout(() => {
                 mainA.style.transition = 'none';
                 blurA.style.transition = 'none';
@@ -2875,26 +2983,90 @@
 
                 currentPhotoSrc = newSrc;
                 fadeTransitionTimer = null;
-            }, 850);
+            }, 750);
         }
 
-        function handlePhotoLoadError(isSlideSwitch) {
-            if (!isSlideSwitch) {
+        function handlePhotoLoadError(photos, failedIdx, isSlideSwitch) {
+            const loadingLayer = document.getElementById('photo-loading-layer');
+            if (loadingLayer) loadingLayer.classList.add('hidden');
+
+            if (photos && photos.length > 1) {
+                // 写真が複数枚あるなら、壊れた写真で画面を止めず次の写真へ自動フォールバック
+                console.warn(`写真[${failedIdx}]の表示に失敗したため、次の写真を試行します。`);
+                slidePhotoIndex = (failedIdx + 1) % photos.length;
+                showSlidePhoto(photos, slidePhotoIndex, isSlideSwitch);
+                renderSlideDots(photos.length, slidePhotoIndex);
+                updatePhotoNavUI(photos, slidePhotoIndex);
+            } else {
+                // 1枚しかなくてそれも表示できない場合のみエラーレイヤーを表示
                 const mainA = document.getElementById('photo-main-a');
                 const mainB = document.getElementById('photo-main-b');
                 const blurA = document.getElementById('photo-blur-a');
                 const blurB = document.getElementById('photo-blur-b');
-                const loadingLayer = document.getElementById('photo-loading-layer');
                 const errorLayer = document.getElementById('photo-error-layer');
 
-                if (mainA) mainA.style.opacity = '0';
-                if (mainB) mainB.style.opacity = '0';
-                if (blurA) blurA.style.opacity = '0';
-                if (blurB) blurB.style.opacity = '0';
-                if (loadingLayer) loadingLayer.classList.add('hidden');
+                if (mainA) { mainA.style.opacity = '0'; mainA.src = ''; }
+                if (mainB) { mainB.style.opacity = '0'; mainB.src = ''; }
+                if (blurA) { blurA.style.opacity = '0'; blurA.src = ''; }
+                if (blurB) { blurB.style.opacity = '0'; blurB.src = ''; }
                 if (errorLayer) errorLayer.classList.remove('hidden');
             }
         }
+
+        function restorePhotoDisplayState() {
+            const mainA = document.getElementById('photo-main-a');
+            const mainB = document.getElementById('photo-main-b');
+            const blurA = document.getElementById('photo-blur-a');
+            const blurB = document.getElementById('photo-blur-b');
+
+            if (fadeTransitionTimer) {
+                clearTimeout(fadeTransitionTimer);
+                fadeTransitionTimer = null;
+            }
+
+            if (currentPhotoSrc) {
+                if (mainA) {
+                    mainA.style.transition = 'none';
+                    mainA.src = currentPhotoSrc;
+                    mainA.style.opacity = '1';
+                }
+                if (blurA) {
+                    blurA.style.transition = 'none';
+                    blurA.src = currentPhotoSrc;
+                    blurA.style.opacity = '1';
+                }
+                if (mainB) {
+                    mainB.style.transition = 'none';
+                    mainB.style.opacity = '0';
+                }
+                if (blurB) {
+                    blurB.style.transition = 'none';
+                    blurB.style.opacity = '0';
+                }
+            }
+        }
+
+        // Page Visibility API: 別タブやアプリ切り替えによるフリーズ・ブラックアウトを完全防止
+        document.addEventListener('visibilitychange', () => {
+            const dateString = (activeDatesList && activeDatesList[currentIndex]) ? activeDatesList[currentIndex] : null;
+            const photos = dateString ? photoDatabase[dateString] : null;
+
+            if (document.hidden) {
+                if (slideShowInterval) {
+                    clearInterval(slideShowInterval);
+                    slideShowInterval = null;
+                }
+                if (fadeTransitionTimer) {
+                    clearTimeout(fadeTransitionTimer);
+                    fadeTransitionTimer = null;
+                }
+            } else {
+                restorePhotoDisplayState();
+                if (photos && photos.length > 1) {
+                    restartSlideshowTimer(photos);
+                }
+            }
+        });
 
         function renderSlideDots(total, current) {
             const indicator = document.getElementById('slide-indicator');
@@ -2906,7 +3078,8 @@
                     ? 'inline-block w-3.5 h-1.5 rounded-full bg-blue-600 transition-all duration-300 cursor-pointer'
                     : 'inline-block w-1.5 h-1.5 rounded-full bg-gray-300 hover:bg-gray-400 transition-all duration-300 cursor-pointer';
                 dot.title = `${i + 1}枚目の写真へ`;
-                dot.addEventListener('click', () => {
+                dot.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     const dateString = activeDatesList[currentIndex];
                     const photos = photoDatabase[dateString];
                     if (!photos || i >= photos.length) return;
