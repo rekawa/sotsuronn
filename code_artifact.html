@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>思い出音楽プレーヤー (スマホ対応版)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -33,7 +36,7 @@
                 <div class="flex-1 text-center pl-6">
                     <div class="flex items-center justify-center space-x-1.5">
                         <h1 class="text-lg font-bold tracking-wide">思い出音楽プレーヤー</h1>
-                        <span class="text-[10px] bg-blue-500/80 text-white px-2 py-0.5 rounded-full font-medium">v2.7</span>
+                        <span class="text-[10px] bg-blue-500/80 text-white px-2 py-0.5 rounded-full font-medium">v2.8</span>
                     </div>
                     <p class="text-[11px] opacity-90">写真と音楽で、あの日を振り返る</p>
                 </div>
@@ -167,10 +170,15 @@
                         </div>
                     </div>
 
-                    <!-- 写真表示エリア -->
+                    <!-- 写真表示エリア (真のクロスフェード対応二重レイヤー構造) -->
                     <div id="photo-container" class="relative w-full h-72 bg-gray-950 rounded-2xl overflow-hidden shadow-md mb-2 flex items-center justify-center text-white">
-                        <img id="photo-blur-layer" class="absolute inset-0 w-full h-full object-cover filter blur-xl brightness-50 z-0 hidden" alt="">
-                        <img id="photo-main-layer" class="relative w-full h-full object-contain z-10 hidden transition-opacity duration-300" alt="">
+                        <!-- 背景ブラー レイヤー A & B -->
+                        <img id="photo-blur-a" class="absolute inset-0 w-full h-full object-cover filter blur-xl brightness-50 z-0 transition-opacity duration-700 ease-in-out opacity-0 pointer-events-none" alt="">
+                        <img id="photo-blur-b" class="absolute inset-0 w-full h-full object-cover filter blur-xl brightness-50 z-0 transition-opacity duration-700 ease-in-out opacity-0 pointer-events-none" alt="">
+
+                        <!-- メイン写真 レイヤー A & B -->
+                        <img id="photo-main-a" class="absolute inset-0 w-full h-full object-contain z-10 transition-opacity duration-700 ease-in-out opacity-0 pointer-events-none" alt="">
+                        <img id="photo-main-b" class="absolute inset-0 w-full h-full object-contain z-10 transition-opacity duration-700 ease-in-out opacity-0 pointer-events-none" alt="">
                         
                         <!-- 読み込み中スピナー -->
                         <div id="photo-loading-layer" class="hidden flex flex-col items-center justify-center z-20">
@@ -636,9 +644,17 @@
 
         // 主要アーティストの英語・日本語表記エイリアス辞書 (normalizeStrキーと値にマップ)
         const RAW_ARTIST_ALIASES = {
+            'arashi': '嵐', '嵐': 'arashi',
+            'creephyp': 'クリープハイプ', 'クリープハイプ': 'creephyp',
+            'keisuke kuwata': '桑田佳祐', 'kuwata keisuke': '桑田佳祐', '桑田佳祐': 'keisuke kuwata', '桑田 佳祐': '桑田佳祐',
+            'hitsujibungaku': '羊文学', '羊文学': 'hitsujibungaku',
+            'ai tomioka': '冨岡愛', 'tomioka ai': '冨岡愛', '富岡愛': '冨岡愛', '冨岡愛': '富岡愛', '冨岡 愛': '冨岡愛',
+            'masaki suda': '菅田将暉', 'suda masaki': '菅田将暉', '菅田将暉': 'masaki suda', '菅田 将暉': '菅田将暉',
+            'nanawo akari': 'ナナヲアカリ', 'nanawoakari': 'ナナヲアカリ', 'ナナヲアカリ': 'nanawo akari',
+            'mrs. green apple': 'ミセス', 'mrs green apple': 'ミセス', 'ミセス': 'mrs. green apple',
             'chanmina': 'ちゃんみな', 'ちゃんみな': 'chanmina',
             'sakanaction': 'さかなくしょん', 'サカナクション': 'sakanaction',
-            'radwimps': 'らっどうぃんぷす',
+            'radwimps': 'らっどうぃんぷす', 'ラッドウィンプス': 'radwimps',
             'king gnu': 'きんぐぬー', 'キングヌー': 'king gnu',
             'official hige dandism': 'おふぃしゃるひげだんでぃずむ', 'official髭男dism': 'おふぃしゃるひげだんでぃずむ', 'ヒゲダン': 'official髭男dism',
             'aimyon': 'あいみょん', 'あいみょん': 'aimyon',
@@ -648,7 +664,6 @@
             'yonezu kenshi': 'よねづけんし', 'kenshi yonezu': 'よねづけんし', '米津玄師': 'kenshi yonezu',
             'be:first': 'befirst', 'befirst': 'be:first', 'ビーファースト': 'be:first',
             'my hair is bad': 'まいへあいずばっど', 'マイヘア': 'my hair is bad',
-            'mrs. green apple': 'みせすぐりーんあっぷる', 'mrs green apple': 'みせすぐりーんあっぷる', 'ミセス': 'mrs. green apple',
             'sekai no owari': 'せかいのおわり', 'セカオワ': 'sekai no owari',
             'bump of chicken': 'ばんぷおぶちきん', 'バンプ': 'bump of chicken',
             'one ok rock': 'わんおくろっく', 'ワンオク': 'one ok rock',
@@ -660,6 +675,15 @@
             'zutomayo': 'ずっとまよなかでいいのに', 'ずっと真夜中でいいのに。': 'zutomayo',
             'yorushika': 'よるしか', 'ヨルシカ': 'yorushika',
             'creepy nuts': 'くりーぴーなっつ', 'クリーピーナッツ': 'creepy nuts',
+            'spitz': 'スピッツ', 'スピッツ': 'spitz',
+            'mr.children': 'ミスターチルドレン', 'ミスチル': 'mr.children',
+            'asian kung-fu generation': 'アジカン', 'アジカン': 'asian kung-fu generation',
+            'uverworld': 'ウーバーワールド',
+            'man with a mission': 'マンウィズ', 'マンウィズ': 'man with a mission',
+            'macaroni empitsu': 'マカロニえんぴつ',
+            'saucy dog': 'サウシードッグ',
+            'tani yuuki': 'たにゆうき',
+            'yuuri': '優里', 'yuri': '優里',
             'da-ice': 'だいす', 'ダイス': 'da-ice',
             'jo1': 'じぇいおーわん', 'ジェイオーワン': 'jo1',
             'ini': 'あいえぬあい', 'アイエヌアイ': 'ini',
@@ -766,6 +790,15 @@
 
             // 共通標準名チェック (例: Official HIGE DANDISM と Official髭男dism が共に おふぃしゃるひげだんでぃずむ にマップされている場合)
             if (alias1 && alias2 && alias1 === alias2) return true;
+
+            // 姓名の順序逆転チェック (例: kuwata keisuke <-> keisuke kuwata, tomioka ai <-> ai tomioka)
+            const parts = normTargetArtist.split(/\s+/).filter(Boolean);
+            if (parts.length === 2) {
+                const reversed = `${parts[1]} ${parts[0]}`;
+                const revAlias = ARTIST_ALIASES[normalizeStr(reversed)];
+                if (revAlias && (sArtist === revAlias || sArtist.includes(revAlias) || revAlias.includes(sArtist))) return true;
+                if (sArtist === normalizeStr(reversed)) return true;
+            }
 
             return false;
         }
@@ -1725,7 +1758,9 @@
             const normTargetTrack = normalizeStr(cleanT);
             const normRawTrack = normalizeStr(targetTrack);
 
-            const noiseWords = ['cover', 'piano', 'オルゴール', 'tribute', 'karaoke', 'bgm', 'acoustic cover', 'インスト', 'originally performed', 'music box'];
+            // ノイズ除去: アルバム名(collectionName)ではなく、トラック名のみを検証する！
+            // (Mrs. GREEN APPLEのトリビュート参加曲『狭心症』などを誤除外しないため)
+            const noiseWords = ['karaoke', 'bgm', 'acoustic cover', 'インスト', 'originally performed', 'music box', 'オルゴール'];
 
             const queries = [
                 `${cleanT} ${targetArtist}`.trim(),
@@ -1741,8 +1776,9 @@
             function evaluateCandidate(song, rank) {
                 if (!song.previewUrl) return null;
 
-                const fullTitle = (song.trackName + ' ' + (song.collectionName || '')).toLowerCase();
-                const isNoise = noiseWords.some(w => fullTitle.includes(w));
+                // トラック名だけを対象にノイズ判定 (collectionNameのtribute等は除外しない！)
+                const trackTitleLower = song.trackName.toLowerCase();
+                const isNoise = noiseWords.some(w => trackTitleLower.includes(w));
                 if (isNoise && !targetTrack.toLowerCase().includes('cover') && !targetTrack.toLowerCase().includes('オルゴール')) {
                     return null;
                 }
@@ -1814,7 +1850,7 @@
                     let candidates = [];
                     data.results.forEach((song, rank) => {
                         const evalRes = evaluateCandidate(song, rank);
-                        if (evalRes && evalRes.totalScore >= 160) {
+                        if (evalRes && evalRes.totalScore >= 155) {
                             candidates.push(evalRes);
                         }
                     });
@@ -1834,11 +1870,14 @@
                     const aRes = await fetch(artistSearchUrl);
                     const aData = await aRes.json();
                     
-                    const matchedArtistObj = (aData.results || []).find(a => 
-                        isArtistMatched(normalizeStr(a.artistName), normTargetArtist, subArtistsNormList)
+                    const artistCandidates = (aData.results || []).filter(a => 
+                        isArtistMatched(normalizeStr(a.artistName), normTargetArtist, subArtistsNormList) ||
+                        (a.artistName && normTargetArtist.toLowerCase().includes(a.artistName.toLowerCase())) ||
+                        (a.artistName && a.artistName.toLowerCase().includes(normTargetArtist.toLowerCase()))
                     );
 
-                    if (matchedArtistObj && matchedArtistObj.artistId) {
+                    for (const matchedArtistObj of artistCandidates) {
+                        if (!matchedArtistObj.artistId) continue;
                         const lookupUrl = `https://itunes.apple.com/lookup?id=${matchedArtistObj.artistId}&entity=song&limit=200&country=JP`;
                         const lRes = await fetch(lookupUrl);
                         const lData = await lRes.json();
@@ -2531,14 +2570,19 @@
             alert("非表示期間を追加しました。");
         });
 
+
         // ==========================================
-        // 15. 写真表示 & スライドショー (滑らかクロスフェード & 暗転ゼロ)
+        // 15. 写真表示 & スライドショー (二重レイヤーによる真のクロスフェード)
         // ==========================================
-        let currentPhotoUrl = null;
+        let activePhotoLayer = 'a'; // 現在前面に表示されているレイヤー ('a' または 'b')
+        let photoUrlA = null;
+        let photoUrlB = null;
 
         function displayPhotosForDate(dateString) {
-            const mainImg = document.getElementById('photo-main-layer');
-            const blurImg = document.getElementById('photo-blur-layer');
+            const mainA = document.getElementById('photo-main-a');
+            const mainB = document.getElementById('photo-main-b');
+            const blurA = document.getElementById('photo-blur-a');
+            const blurB = document.getElementById('photo-blur-b');
             const emptyLayer = document.getElementById('photo-empty-layer');
             const errorLayer = document.getElementById('photo-error-layer');
             const loadingLayer = document.getElementById('photo-loading-layer');
@@ -2573,8 +2617,10 @@
                     }, 4000);
                 }
             } else {
-                mainImg.classList.add('hidden');
-                blurImg.classList.add('hidden');
+                if (mainA) mainA.style.opacity = '0';
+                if (mainB) mainB.style.opacity = '0';
+                if (blurA) blurA.style.opacity = '0';
+                if (blurB) blurB.style.opacity = '0';
                 if (loadingLayer) loadingLayer.classList.add('hidden');
                 emptyLayer.classList.remove('hidden');
             }
@@ -2584,8 +2630,6 @@
             const file = photos[idx];
             if (!file) return;
 
-            const mainImg = document.getElementById('photo-main-layer');
-            const blurImg = document.getElementById('photo-blur-layer');
             const emptyLayer = document.getElementById('photo-empty-layer');
             const errorLayer = document.getElementById('photo-error-layer');
             const loadingLayer = document.getElementById('photo-loading-layer');
@@ -2593,11 +2637,9 @@
             emptyLayer.classList.add('hidden');
             if (errorLayer) errorLayer.classList.add('hidden');
 
-            // 初回ロード時のみスピナーを表示。定期スライドショー切り替え時は画面を暗転させない！
-            if (!isSlideSwitch) {
-                mainImg.classList.add('hidden');
-                blurImg.classList.add('hidden');
-                if (loadingLayer) loadingLayer.classList.remove('hidden');
+            // 初回ロード時のみスピナーを表示。定期スライドショー切り替え時は画面を一切暗転させない！
+            if (!isSlideSwitch && loadingLayer) {
+                loadingLayer.classList.remove('hidden');
             }
 
             let nextUrl = null;
@@ -2630,7 +2672,7 @@
             }
 
             if (nextUrl) {
-                // 画像を裏でプリロードしてロード完了後にクロスフェード表示
+                // 画像を裏でプリロードしてデコード完了後に滑らかにクロスフェード
                 const preload = new Image();
                 preload.onload = function() {
                     applyPhotoToLayers(nextUrl, isSlideSwitch);
@@ -2643,58 +2685,88 @@
         }
 
         function applyPhotoToLayers(newSrc, isSlideSwitch) {
-            const mainImg = document.getElementById('photo-main-layer');
-            const blurImg = document.getElementById('photo-blur-layer');
+            const mainA = document.getElementById('photo-main-a');
+            const mainB = document.getElementById('photo-main-b');
+            const blurA = document.getElementById('photo-blur-a');
+            const blurB = document.getElementById('photo-blur-b');
             const loadingLayer = document.getElementById('photo-loading-layer');
             const errorLayer = document.getElementById('photo-error-layer');
 
             if (loadingLayer) loadingLayer.classList.add('hidden');
             if (errorLayer) errorLayer.classList.add('hidden');
 
-            if (isSlideSwitch) {
-                // スライド定期切り替え: 暗転・黒画面なしで優しくクロスフェード
-                mainImg.style.transition = 'opacity 0.4s ease-in-out';
-                blurImg.style.transition = 'opacity 0.4s ease-in-out';
-                mainImg.style.opacity = '0.3';
-                blurImg.style.opacity = '0.3';
+            if (!isSlideSwitch) {
+                // 日付変更時の初回表示: レイヤーAを表示、Bは非表示
+                activePhotoLayer = 'a';
+                mainA.src = newSrc;
+                blurA.src = newSrc;
+                mainA.style.opacity = '1';
+                blurA.style.opacity = '1';
+                mainB.style.opacity = '0';
+                blurB.style.opacity = '0';
 
-                setTimeout(() => {
-                    mainImg.src = newSrc;
-                    blurImg.src = newSrc;
-                    mainImg.classList.remove('hidden');
-                    blurImg.classList.remove('hidden');
-                    mainImg.style.opacity = '1';
-                    blurImg.style.opacity = '1';
-                }, 200);
+                if (photoUrlA && photoUrlA.startsWith('blob:') && photoUrlA !== newSrc) {
+                    try { URL.revokeObjectURL(photoUrlA); } catch (e) {}
+                }
+                if (photoUrlB && photoUrlB.startsWith('blob:')) {
+                    try { URL.revokeObjectURL(photoUrlB); } catch (e) {}
+                    photoUrlB = null;
+                }
+                photoUrlA = newSrc;
+                return;
+            }
+
+            // スライドショー定期切り替え: 二重レイヤーの同時フェードイン＆フェードアウト！
+            // 前の写真がゆっくり消えながら、次の写真が全く同じペースでゆっくり現れる
+            if (activePhotoLayer === 'a') {
+                mainB.src = newSrc;
+                blurB.src = newSrc;
+                // ブラウザ描画フレームに合わせて同時にクロスフェード開始
+                requestAnimationFrame(() => {
+                    mainB.style.opacity = '1';
+                    blurB.style.opacity = '1';
+                    mainA.style.opacity = '0';
+                    blurA.style.opacity = '0';
+                });
+                activePhotoLayer = 'b';
+
+                if (photoUrlB && photoUrlB.startsWith('blob:') && photoUrlB !== newSrc) {
+                    const old = photoUrlB;
+                    setTimeout(() => { try { URL.revokeObjectURL(old); } catch (e) {} }, 1500);
+                }
+                photoUrlB = newSrc;
             } else {
-                // 日付変更時の初回表示
-                mainImg.src = newSrc;
-                blurImg.src = newSrc;
-                mainImg.style.opacity = '1';
-                blurImg.style.opacity = '1';
-                mainImg.classList.remove('hidden');
-                blurImg.classList.remove('hidden');
-            }
+                mainA.src = newSrc;
+                blurA.src = newSrc;
+                requestAnimationFrame(() => {
+                    mainA.style.opacity = '1';
+                    blurA.style.opacity = '1';
+                    mainB.style.opacity = '0';
+                    blurB.style.opacity = '0';
+                });
+                activePhotoLayer = 'a';
 
-            // 直前のURLを安全に解放
-            if (currentPhotoUrl && currentPhotoUrl !== newSrc && currentPhotoUrl.startsWith('blob:')) {
-                const oldUrl = currentPhotoUrl;
-                setTimeout(() => {
-                    try { URL.revokeObjectURL(oldUrl); } catch (e) {}
-                }, 1000);
+                if (photoUrlA && photoUrlA.startsWith('blob:') && photoUrlA !== newSrc) {
+                    const old = photoUrlA;
+                    setTimeout(() => { try { URL.revokeObjectURL(old); } catch (e) {} }, 1500);
+                }
+                photoUrlA = newSrc;
             }
-            currentPhotoUrl = newSrc;
         }
 
         function handlePhotoLoadError(isSlideSwitch) {
             if (!isSlideSwitch) {
-                const mainImg = document.getElementById('photo-main-layer');
-                const blurImg = document.getElementById('photo-blur-layer');
+                const mainA = document.getElementById('photo-main-a');
+                const mainB = document.getElementById('photo-main-b');
+                const blurA = document.getElementById('photo-blur-a');
+                const blurB = document.getElementById('photo-blur-b');
                 const loadingLayer = document.getElementById('photo-loading-layer');
                 const errorLayer = document.getElementById('photo-error-layer');
 
-                mainImg.classList.add('hidden');
-                blurImg.classList.add('hidden');
+                if (mainA) mainA.style.opacity = '0';
+                if (mainB) mainB.style.opacity = '0';
+                if (blurA) blurA.style.opacity = '0';
+                if (blurB) blurB.style.opacity = '0';
                 if (loadingLayer) loadingLayer.classList.add('hidden');
                 if (errorLayer) errorLayer.classList.remove('hidden');
             }
