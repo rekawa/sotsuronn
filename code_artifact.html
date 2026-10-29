@@ -834,48 +834,21 @@
         // ==========================================
         window.addEventListener('DOMContentLoaded', async () => {
             try {
+                // プライバシー保護: 写真データはストレージに一切保存・保持せず即座に完全消去
+                try {
+                    await localforage.removeItem('saved_photo_database');
+                } catch (e) {}
+
                 const savedStreaming = await localforage.getItem('saved_streaming_history');
                 const savedFiles = await localforage.getItem('saved_streaming_files_meta');
                 const savedManual = await localforage.getItem('saved_manual_tracks');
                 const savedDeleted = await localforage.getItem('saved_deleted_tracks');
                 const savedHidden = await localforage.getItem('saved_hidden_settings');
-                const savedPhotos = await localforage.getItem('saved_photo_database');
 
                 if (savedStreaming) rawStreamingData = savedStreaming;
                 if (savedManual) manualTracksData = savedManual;
                 if (savedDeleted) deletedTracksData = savedDeleted;
                 if (savedHidden) hiddenSettings = savedHidden;
-
-                // 保存された写真データベースの復元
-                if (savedPhotos && typeof savedPhotos === 'object') {
-                    photoDatabase = savedPhotos;
-                    const totalStocked = Object.values(photoDatabase).reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
-                    if (totalStocked > 0) {
-                        isPhotosReady = true;
-                        const statusEl = document.getElementById('photo-status');
-                        const previewSection = document.getElementById('photo-summary-preview');
-                        const previewTags = document.getElementById('photo-summary-tags');
-                        const addMoreArea = document.getElementById('photo-add-more-area');
-                        const dateList = Object.keys(photoDatabase).sort((a, b) => new Date(b) - new Date(a));
-
-                        if (statusEl) {
-                            statusEl.classList.remove('hidden');
-                            statusEl.innerText = `✓ ${totalStocked}枚の写真を復元しました (累計 ${dateList.length}日分)`;
-                        }
-                        if (previewTags) {
-                            previewTags.innerHTML = '';
-                            dateList.forEach(d => {
-                                const tag = document.createElement('span');
-                                tag.className = 'bg-pink-100 text-pink-700 px-2 py-0.5 rounded text-[10px] font-bold';
-                                tag.innerText = `${d} (${photoDatabase[d].length}枚)`;
-                                previewTags.appendChild(tag);
-                            });
-                        }
-                        if (previewSection) previewSection.classList.remove('hidden');
-                        if (addMoreArea) addMoreArea.classList.remove('hidden');
-                        checkReadyState();
-                    }
-                }
 
                 Object.keys(rawStreamingData).forEach(d => {
                     if (!Array.isArray(rawStreamingData[d])) {
@@ -1417,13 +1390,6 @@
 
             isPhotosReady = true;
             checkReadyState();
-
-            // 写真データベースを IndexedDB に永続化 (リロードやタブ切り替えでも消えないようにする)
-            try {
-                await localforage.setItem('saved_photo_database', photoDatabase);
-            } catch (storageErr) {
-                console.warn("写真のIndexedDB保存警告（容量上限の可能性）:", storageErr);
-            }
 
             if (isFromPlayer) {
                 // プレーヤー画面から追加された場合
