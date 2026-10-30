@@ -140,20 +140,36 @@
 
                 <!-- アプリのメイン画面（プレーヤー） -->
                 <div id="player-section" class="hidden pb-10">
-                    <!-- ナビゲーションモード切替 (3モード: 写真のある日 / 履歴のある日 / すべての日) -->
-                    <div class="flex items-center justify-between mb-2.5 px-1">
-                        <div class="flex items-center space-x-1 bg-gray-200 p-0.5 rounded-lg text-[10px] font-bold">
-                            <button id="mode-photos-btn" class="px-2 py-1 rounded-md bg-white text-blue-600 shadow-xs transition whitespace-nowrap">
-                                📸 写真のある日
+                    <!-- 振り返り単位の切替 (1日ごと / 週ごと / 月ごと) -->
+                    <div class="flex items-center justify-between mb-2 px-1">
+                        <div class="flex items-center space-x-1 bg-blue-50 border border-blue-200/80 p-0.5 rounded-xl text-[11px] font-bold shadow-2xs">
+                            <button id="timespan-day-btn" class="px-2.5 py-1 rounded-lg bg-blue-600 text-white shadow-xs transition whitespace-nowrap cursor-pointer">
+                                📅 1日ごと
                             </button>
-                            <button id="mode-history-btn" class="px-2 py-1 rounded-md text-gray-600 hover:text-gray-900 transition whitespace-nowrap">
-                                🎵 履歴のある日
+                            <button id="timespan-week-btn" class="px-2.5 py-1 rounded-lg text-blue-800 hover:bg-blue-100/70 transition whitespace-nowrap cursor-pointer">
+                                📆 週ごと
                             </button>
-                            <button id="mode-all-btn" class="px-2 py-1 rounded-md text-gray-600 hover:text-gray-900 transition whitespace-nowrap">
-                                📅 すべての日
+                            <button id="timespan-month-btn" class="px-2.5 py-1 rounded-lg text-blue-800 hover:bg-blue-100/70 transition whitespace-nowrap cursor-pointer">
+                                🗓️ 月ごと
                             </button>
                         </div>
-                        <span id="nav-date-index" class="text-[11px] text-gray-500 font-medium">1 / 1日</span>
+                        <span id="nav-date-index" class="text-[11px] text-gray-500 font-bold bg-gray-100 px-2 py-0.5 rounded-full">1 / 1日</span>
+                    </div>
+
+                    <!-- ナビゲーションフィルター切替 (写真あり / 履歴あり / すべて) -->
+                    <div class="flex items-center justify-between mb-2.5 px-1">
+                        <div class="flex items-center space-x-1 bg-gray-200/80 p-0.5 rounded-lg text-[10px] font-bold">
+                            <button id="mode-photos-btn" class="px-2 py-0.5 rounded-md bg-white text-blue-600 shadow-xs transition whitespace-nowrap cursor-pointer">
+                                📸 写真あり
+                            </button>
+                            <button id="mode-history-btn" class="px-2 py-0.5 rounded-md text-gray-600 hover:text-gray-900 transition whitespace-nowrap cursor-pointer">
+                                🎵 履歴あり
+                            </button>
+                            <button id="mode-all-btn" class="px-2 py-0.5 rounded-md text-gray-600 hover:text-gray-900 transition whitespace-nowrap cursor-pointer">
+                                🌐 すべて
+                            </button>
+                        </div>
+                        <span id="timespan-mode-badge" class="text-[10px] text-blue-700 font-semibold bg-blue-50/80 border border-blue-200/70 px-1.5 py-0.5 rounded-md">1日ごとに振り返り中</span>
                     </div>
 
                     <!-- 日付ナビゲーション & カレンダー -->
@@ -206,6 +222,7 @@
                         <button id="photo-next-btn" class="absolute right-2.5 top-1/2 -translate-y-1/2 z-30 bg-black/50 hover:bg-black/80 text-white rounded-full w-9 h-9 flex items-center justify-center transition active:scale-90 shadow-md backdrop-blur-xs hidden cursor-pointer select-none" title="次の写真へ">
                             <span class="text-base font-bold leading-none select-none">›</span>
                         </button>
+                        <div id="photo-date-sub-badge" class="absolute top-2.5 left-2.5 z-30 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs hidden pointer-events-none border border-white/20"></div>
                         <div id="photo-progress-badge" class="absolute top-2.5 right-2.5 z-30 bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs hidden pointer-events-none">
                             1 / 1
                         </div>
@@ -219,7 +236,7 @@
                         <!-- 写真なしレイヤー -->
                         <div id="photo-empty-layer" class="text-center px-4 z-10">
                             <span class="text-3xl block mb-1.5">📸</span>
-                            <p class="text-gray-300 text-xs font-medium mb-2.5">この日の写真はありませんでした<br><span class="text-[11px] text-gray-400">前後の日付に移動するか、写真を追加できます</span></p>
+                            <p id="photo-empty-text" class="text-gray-300 text-xs font-medium mb-2.5">この日の写真はありませんでした<br><span class="text-[11px] text-gray-400">前後の日付に移動するか、写真を追加できます</span></p>
                             <button id="photo-empty-add-btn" class="bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1.5 rounded-full transition backdrop-blur-xs border border-white/30 active:scale-95">
                                 ＋ 写真を追加する
                             </button>
@@ -651,8 +668,12 @@
         let hiddenSettings = { hiddenSongs: [], hiddenPeriods: [] };
         
         let photoDatabase = {};          // 写真ファイル配列 { 'YYYY-MM-DD': [File, ...] }
-        let activeDatesList = [];        // 現在のナビゲーション対象日リスト
-        let navMode = 'photos';          // 'photos' または 'all'
+        let activeDatesList = [];        // 現在のナビゲーション対象日リスト (互換性用)
+        let timeSpanMode = 'day';        // 振り返り単位 ('day' | 'week' | 'month')
+        let activePeriodsList = [];      // 期間アイテム配列 [ { id, type, primaryDate, startDate, endDate, dateList, label, photoCount, hasPhotos, hasHistory } ]
+        let currentPeriodIndex = 0;      // 現在選択中の期間インデックス
+        let currentPeriodPhotos = [];    // 現在選択中の期間の写真オブジェクト配列
+        let navMode = 'photos';          // 'photos' | 'history' | 'all'
         let currentIndex = 0;
         let activeTrackIndex = 0;
         let isStreamingReady = false;
@@ -664,6 +685,70 @@
         // ==========================================
         // 3. ユーティリティ
         // ==========================================
+        // 指定日の週の月曜日 (YYYY-MM-DD) を取得
+        function getMondayOfWeek(dateStr) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            const day = date.getDay(); // 0(Sun) - 6(Sat)
+            const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+            const mon = new Date(y, m - 1, diff);
+            const monY = mon.getFullYear();
+            const monM = String(mon.getMonth() + 1).padStart(2, '0');
+            const monD = String(mon.getDate()).padStart(2, '0');
+            return `${monY}-${monM}-${monD}`;
+        }
+
+        // 月曜日から日曜日までの7日間の配列を生成
+        function getDaysInWeek(mondayStr) {
+            const days = [];
+            const [y, m, d] = mondayStr.split('-').map(Number);
+            const cur = new Date(y, m - 1, d);
+            for (let i = 0; i < 7; i++) {
+                const curY = cur.getFullYear();
+                const curM = String(cur.getMonth() + 1).padStart(2, '0');
+                const curD = String(cur.getDate()).padStart(2, '0');
+                days.push(`${curY}-${curM}-${curD}`);
+                cur.setDate(cur.getDate() + 1);
+            }
+            return days;
+        }
+
+        // 週の表示用ラベル ("2020年8月 第2週 (8/10〜8/16)")
+        function formatWeekLabel(mondayStr) {
+            const [y, m, d] = mondayStr.split('-').map(Number);
+            const mon = new Date(y, m - 1, d);
+            const sun = new Date(y, m - 1, d + 6);
+
+            const year = mon.getFullYear();
+            const month = mon.getMonth() + 1;
+            const firstDay = new Date(year, mon.getMonth(), 1).getDay();
+            const weekNum = Math.ceil((mon.getDate() + (firstDay === 0 ? 6 : firstDay - 1)) / 7);
+
+            const sm = mon.getMonth() + 1;
+            const sd = mon.getDate();
+            const em = sun.getMonth() + 1;
+            const ed = sun.getDate();
+
+            return `${year}年${month}月 第${weekNum}週 (${sm}/${sd}〜${em}/${ed})`;
+        }
+
+        // 月の全日 (YYYY-MM-01 〜 YYYY-MM-末日) の配列を生成
+        function getDaysInMonth(yearMonthStr) {
+            const [y, m] = yearMonthStr.split('-').map(Number);
+            const days = [];
+            const lastDay = new Date(y, m, 0).getDate();
+            for (let i = 1; i <= lastDay; i++) {
+                days.push(`${y}-${String(m).padStart(2, '0')}-${String(i).padStart(2, '0')}`);
+            }
+            return days;
+        }
+
+        // 月の表示用ラベル ("2020年8月")
+        function formatMonthLabel(yearMonthStr) {
+            const [y, m] = yearMonthStr.split('-').map(Number);
+            return `${y}年${m}月`;
+        }
+
         function escapeHtml(str) {
             if (!str) return '';
             return String(str)
@@ -1469,18 +1554,19 @@
 
             if (isFromPlayer) {
                 // プレーヤー画面から追加された場合
-                const currentDateStr = (activeDatesList && activeDatesList[currentIndex]) ? activeDatesList[currentIndex] : null;
-                rebuildActiveDatesList();
+                const currentPeriod = (activePeriodsList && activePeriodsList[currentPeriodIndex]) ? activePeriodsList[currentPeriodIndex] : null;
+                const currentDateStr = currentPeriod ? currentPeriod.primaryDate : null;
+                rebuildActivePeriodsList();
                 if (currentDateStr) {
-                    const newIdx = activeDatesList.indexOf(currentDateStr);
+                    const newIdx = activePeriodsList.findIndex(p => p.dateList.includes(currentDateStr));
                     if (newIdx !== -1) {
-                        currentIndex = newIdx;
+                        currentPeriodIndex = newIdx;
                     } else {
-                        currentIndex = 0;
+                        currentPeriodIndex = 0;
                     }
                 }
-                currentDisplayedPhotoDate = null; // 写真追加時は現在の表示を強制リフレッシュ
-                loadDay(currentIndex);
+                currentDisplayedPeriodId = null; // 写真追加時は現在の表示を強制リフレッシュ
+                loadPeriod(currentPeriodIndex);
                 showToast(`✓ 新たに ${addedCount} 枚の写真を追加しました！(累計 ${totalStocked}枚)`);
             }
         }
@@ -1731,18 +1817,83 @@
                 setNavMode('all');
             }
 
-            if (activeDatesList.length === 0) {
-                alert("表示できる日付データがありません。");
+            if (activePeriodsList.length === 0) {
+                alert("表示できるデータがありません。");
                 return;
             }
 
             document.getElementById('setup-section').classList.add('hidden');
             document.getElementById('player-section').classList.remove('hidden');
             
-            currentIndex = activeDatesList.length - 1;
-            loadDay(currentIndex);
+            currentPeriodIndex = activePeriodsList.length - 1;
+            loadPeriod(currentPeriodIndex);
         });
 
+        // 振り返り単位切り替えボタン (1日ごと / 週ごと / 月ごと)
+        const timespanDayBtn = document.getElementById('timespan-day-btn');
+        const timespanWeekBtn = document.getElementById('timespan-week-btn');
+        const timespanMonthBtn = document.getElementById('timespan-month-btn');
+
+        if (timespanDayBtn) timespanDayBtn.addEventListener('click', () => setTimeSpanMode('day'));
+        if (timespanWeekBtn) timespanWeekBtn.addEventListener('click', () => setTimeSpanMode('week'));
+        if (timespanMonthBtn) timespanMonthBtn.addEventListener('click', () => setTimeSpanMode('month'));
+
+        function setTimeSpanMode(mode) {
+            if (timeSpanMode === mode) return;
+            const prevMode = timeSpanMode;
+            timeSpanMode = mode;
+
+            const currentPeriod = activePeriodsList[currentPeriodIndex];
+            const targetDate = currentPeriod ? currentPeriod.primaryDate : null;
+
+            rebuildActivePeriodsList();
+
+            if (activePeriodsList.length === 0) {
+                const modeLabel = (mode === 'week') ? '週' : (mode === 'month') ? '月' : '日';
+                showToast(`該当する${modeLabel}データがありません`);
+                timeSpanMode = prevMode;
+                rebuildActivePeriodsList();
+            }
+
+            const activeBtnClass = "px-2.5 py-1 rounded-lg bg-blue-600 text-white shadow-xs transition whitespace-nowrap cursor-pointer";
+            const inactiveBtnClass = "px-2.5 py-1 rounded-lg text-blue-800 hover:bg-blue-100/70 transition whitespace-nowrap cursor-pointer";
+
+            if (timespanDayBtn) timespanDayBtn.className = (timeSpanMode === 'day') ? activeBtnClass : inactiveBtnClass;
+            if (timespanWeekBtn) timespanWeekBtn.className = (timeSpanMode === 'week') ? activeBtnClass : inactiveBtnClass;
+            if (timespanMonthBtn) timespanMonthBtn.className = (timeSpanMode === 'month') ? activeBtnClass : inactiveBtnClass;
+
+            const badge = document.getElementById('timespan-mode-badge');
+            if (badge) {
+                if (timeSpanMode === 'day') badge.innerText = '1日ごとに振り返り中';
+                else if (timeSpanMode === 'week') badge.innerText = '📆 1週間ごとに振り返り中';
+                else if (timeSpanMode === 'month') badge.innerText = '🗓️ 1ヶ月ごとに振り返り中';
+            }
+
+            // 期間インデックスの引き継ぎ (直前の代表日が含まれる期間、または最も近い期間)
+            let targetIdx = -1;
+            if (targetDate && activePeriodsList.length > 0) {
+                targetIdx = activePeriodsList.findIndex(p => p.dateList.includes(targetDate));
+                if (targetIdx === -1) {
+                    const targetTime = new Date(targetDate + 'T00:00:00').getTime();
+                    let minDiff = Infinity;
+                    activePeriodsList.forEach((p, idx) => {
+                        const pTime = new Date(p.primaryDate + 'T00:00:00').getTime();
+                        const diff = Math.abs(pTime - targetTime);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            targetIdx = idx;
+                        }
+                    });
+                }
+            }
+            if (targetIdx === -1) {
+                targetIdx = Math.max(0, activePeriodsList.length - 1);
+            }
+
+            loadPeriod(targetIdx);
+        }
+
+        // フィルター切り替えボタン (写真あり / 履歴あり / すべて)
         const modePhotosBtn = document.getElementById('mode-photos-btn');
         const modeHistoryBtn = document.getElementById('mode-history-btn');
         const modeAllBtn = document.getElementById('mode-all-btn');
@@ -1755,77 +1906,327 @@
             const prevMode = navMode;
             navMode = mode;
 
-            const curDate = (activeDatesList && activeDatesList[currentIndex]) ? activeDatesList[currentIndex] : null;
-            rebuildActiveDatesList();
+            const currentPeriod = (activePeriodsList && activePeriodsList[currentPeriodIndex]) ? activePeriodsList[currentPeriodIndex] : null;
+            const curDate = currentPeriod ? currentPeriod.primaryDate : null;
+            rebuildActivePeriodsList();
 
-            if (activeDatesList.length === 0) {
-                const label = (mode === 'photos') ? '写真のある日' : (mode === 'history' ? '視聴履歴のある日' : '日付');
+            if (activePeriodsList.length === 0) {
+                const label = (mode === 'photos') ? '写真' : (mode === 'history' ? '視聴履歴' : 'データ');
                 showToast(`該当する${label}がまだ登録されていません`);
                 navMode = prevMode;
-                rebuildActiveDatesList();
+                rebuildActivePeriodsList();
             }
 
-            const activeClass = "px-2 py-1 rounded-md bg-white text-blue-600 shadow-xs transition whitespace-nowrap";
-            const inactiveClass = "px-2 py-1 rounded-md text-gray-600 hover:text-gray-900 transition whitespace-nowrap";
+            const activeClass = "px-2 py-0.5 rounded-md bg-white text-blue-600 shadow-xs transition whitespace-nowrap cursor-pointer";
+            const inactiveClass = "px-2 py-0.5 rounded-md text-gray-600 hover:text-gray-900 transition whitespace-nowrap cursor-pointer";
 
             modePhotosBtn.className = (navMode === 'photos') ? activeClass : inactiveClass;
             modeHistoryBtn.className = (navMode === 'history') ? activeClass : inactiveClass;
             modeAllBtn.className = (navMode === 'all') ? activeClass : inactiveClass;
 
-            if (refresh && activeDatesList.length > 0) {
-                let idx = curDate ? activeDatesList.indexOf(curDate) : -1;
-                if (idx === -1) idx = Math.max(0, activeDatesList.length - 1);
-                loadDay(idx);
+            if (refresh && activePeriodsList.length > 0) {
+                let idx = curDate ? activePeriodsList.findIndex(p => p.dateList.includes(curDate)) : -1;
+                if (idx === -1) idx = Math.max(0, activePeriodsList.length - 1);
+                loadPeriod(idx);
             }
         }
 
         function rebuildActiveDatesList() {
-            const photoDates = Object.keys(photoDatabase).filter(d => !isDateHidden(d) && photoDatabase[d].length > 0);
-            const historyDates = Object.keys(rawStreamingData).filter(d => !isDateHidden(d) && rawStreamingData[d].length > 0);
-
-            if (navMode === 'photos') {
-                activeDatesList = photoDates.sort((a, b) => new Date(a) - new Date(b));
-            } else if (navMode === 'history') {
-                activeDatesList = historyDates.sort((a, b) => new Date(a) - new Date(b));
-            } else { // 'all' すべての日 (写真も履歴もない日も含め、カレンダーの期間すべてを連続展開)
-                const allKnownDates = [
-                    ...Object.keys(photoDatabase),
-                    ...Object.keys(rawStreamingData),
-                    ...Object.keys(manualTracksData)
-                ].filter(d => !isDateHidden(d)).sort((a, b) => new Date(a) - new Date(b));
-
-                if (allKnownDates.length > 0) {
-                    const minDate = new Date(allKnownDates[0]);
-                    const maxDate = new Date(allKnownDates[allKnownDates.length - 1]);
-                    const dateList = [];
-                    const cur = new Date(minDate);
-                    // 最小日〜最大日の全日を連続生成
-                    while (cur <= maxDate) {
-                        const y = cur.getFullYear();
-                        const m = String(cur.getMonth() + 1).padStart(2, '0');
-                        const d = String(cur.getDate()).padStart(2, '0');
-                        const dateStr = `${y}-${m}-${d}`;
-                        if (!isDateHidden(dateStr)) {
-                            dateList.push(dateStr);
-                        }
-                        cur.setDate(cur.getDate() + 1);
-                    }
-                    activeDatesList = dateList;
-                } else {
-                    const today = new Date();
-                    const y = today.getFullYear();
-                    const m = String(today.getMonth() + 1).padStart(2, '0');
-                    const d = String(today.getDate()).padStart(2, '0');
-                    activeDatesList = [`${y}-${m}-${d}`];
-                }
-            }
+            rebuildActivePeriodsList();
         }
 
+        function rebuildActivePeriodsList() {
+            const allKnownDates = [
+                ...Object.keys(photoDatabase),
+                ...Object.keys(rawStreamingData),
+                ...Object.keys(manualTracksData)
+            ].filter(d => !isDateHidden(d)).sort((a, b) => new Date(a) - new Date(b));
+
+            const photoDatesSet = new Set(Object.keys(photoDatabase).filter(d => !isDateHidden(d) && photoDatabase[d].length > 0));
+            const historyDatesSet = new Set(Object.keys(rawStreamingData).filter(d => !isDateHidden(d) && rawStreamingData[d].length > 0));
+
+            if (timeSpanMode === 'day') {
+                let dates = [];
+                if (navMode === 'photos') {
+                    dates = Array.from(photoDatesSet).sort((a, b) => new Date(a) - new Date(b));
+                } else if (navMode === 'history') {
+                    dates = Array.from(historyDatesSet).sort((a, b) => new Date(a) - new Date(b));
+                } else {
+                    if (allKnownDates.length > 0) {
+                        const minDate = new Date(allKnownDates[0] + 'T00:00:00');
+                        const maxDate = new Date(allKnownDates[allKnownDates.length - 1] + 'T00:00:00');
+                        const cur = new Date(minDate);
+                        while (cur <= maxDate) {
+                            const y = cur.getFullYear();
+                            const m = String(cur.getMonth() + 1).padStart(2, '0');
+                            const d = String(cur.getDate()).padStart(2, '0');
+                            const dateStr = `${y}-${m}-${d}`;
+                            if (!isDateHidden(dateStr)) {
+                                dates.push(dateStr);
+                            }
+                            cur.setDate(cur.getDate() + 1);
+                        }
+                    } else {
+                        const today = new Date();
+                        const y = today.getFullYear();
+                        const m = String(today.getMonth() + 1).padStart(2, '0');
+                        const d = String(today.getDate()).padStart(2, '0');
+                        dates = [`${y}-${m}-${d}`];
+                    }
+                }
+
+                activePeriodsList = dates.map(d => {
+                    const [y, m, day] = d.split('-');
+                    const photos = photoDatabase[d] || [];
+                    const history = rawStreamingData[d] || [];
+                    const manual = manualTracksData[d] || [];
+                    return {
+                        id: d,
+                        type: 'day',
+                        primaryDate: d,
+                        startDate: d,
+                        endDate: d,
+                        dateList: [d],
+                        label: `${y}年${parseInt(m)}月${parseInt(day)}日`,
+                        photoCount: photos.length,
+                        hasPhotos: photos.length > 0,
+                        hasHistory: history.length > 0 || manual.length > 0
+                    };
+                });
+
+            } else if (timeSpanMode === 'week') {
+                let mondayList = [];
+                if (navMode === 'all') {
+                    if (allKnownDates.length > 0) {
+                        const startMonday = getMondayOfWeek(allKnownDates[0]);
+                        const endMonday = getMondayOfWeek(allKnownDates[allKnownDates.length - 1]);
+                        let cur = new Date(startMonday + 'T00:00:00');
+                        const end = new Date(endMonday + 'T00:00:00');
+                        while (cur <= end) {
+                            const y = cur.getFullYear();
+                            const m = String(cur.getMonth() + 1).padStart(2, '0');
+                            const d = String(cur.getDate()).padStart(2, '0');
+                            mondayList.push(`${y}-${m}-${d}`);
+                            cur.setDate(cur.getDate() + 7);
+                        }
+                    } else {
+                        const today = new Date();
+                        const y = today.getFullYear();
+                        const m = String(today.getMonth() + 1).padStart(2, '0');
+                        const d = String(today.getDate()).padStart(2, '0');
+                        mondayList.push(getMondayOfWeek(`${y}-${m}-${d}`));
+                    }
+                } else {
+                    const mondaysSet = new Set();
+                    const sourceDates = (navMode === 'photos') ? photoDatesSet : historyDatesSet;
+                    sourceDates.forEach(d => {
+                        mondaysSet.add(getMondayOfWeek(d));
+                    });
+                    mondayList = Array.from(mondaysSet).sort((a, b) => new Date(a) - new Date(b));
+                }
+
+                const periods = [];
+                mondayList.forEach(mondayStr => {
+                    const dateList = getDaysInWeek(mondayStr).filter(d => !isDateHidden(d));
+                    let photoCount = 0;
+                    let hasHistory = false;
+                    dateList.forEach(d => {
+                        if (photoDatabase[d]) photoCount += photoDatabase[d].length;
+                        if ((rawStreamingData[d] && rawStreamingData[d].length > 0) || (manualTracksData[d] && manualTracksData[d].length > 0)) {
+                            hasHistory = true;
+                        }
+                    });
+
+                    const hasPhotos = photoCount > 0;
+                    if (navMode === 'photos' && !hasPhotos) return;
+                    if (navMode === 'history' && !hasHistory) return;
+
+                    const preferredDate = dateList.find(d => (photoDatabase[d]?.length > 0 || rawStreamingData[d]?.length > 0)) || dateList[2] || mondayStr;
+
+                    periods.push({
+                        id: `week-${mondayStr}`,
+                        type: 'week',
+                        primaryDate: preferredDate,
+                        startDate: mondayStr,
+                        endDate: dateList[dateList.length - 1] || mondayStr,
+                        dateList: dateList,
+                        label: formatWeekLabel(mondayStr),
+                        photoCount: photoCount,
+                        hasPhotos: hasPhotos,
+                        hasHistory: hasHistory
+                    });
+                });
+
+                activePeriodsList = periods;
+
+            } else if (timeSpanMode === 'month') {
+                let ymList = [];
+                if (navMode === 'all') {
+                    if (allKnownDates.length > 0) {
+                        const startYM = allKnownDates[0].slice(0, 7);
+                        const endYM = allKnownDates[allKnownDates.length - 1].slice(0, 7);
+                        const [sy, sm] = startYM.split('-').map(Number);
+                        const [ey, em] = endYM.split('-').map(Number);
+                        let curY = sy;
+                        let curM = sm;
+                        while (curY < ey || (curY === ey && curM <= em)) {
+                            ymList.push(`${curY}-${String(curM).padStart(2, '0')}`);
+                            curM++;
+                            if (curM > 12) {
+                                curM = 1;
+                                curY++;
+                            }
+                        }
+                    } else {
+                        const today = new Date();
+                        ymList.push(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
+                    }
+                } else {
+                    const ymSet = new Set();
+                    const sourceDates = (navMode === 'photos') ? photoDatesSet : historyDatesSet;
+                    sourceDates.forEach(d => {
+                        ymSet.add(d.slice(0, 7));
+                    });
+                    ymList = Array.from(ymSet).sort();
+                }
+
+                const periods = [];
+                ymList.forEach(ymStr => {
+                    const dateList = getDaysInMonth(ymStr).filter(d => !isDateHidden(d));
+                    let photoCount = 0;
+                    let hasHistory = false;
+                    dateList.forEach(d => {
+                        if (photoDatabase[d]) photoCount += photoDatabase[d].length;
+                        if ((rawStreamingData[d] && rawStreamingData[d].length > 0) || (manualTracksData[d] && manualTracksData[d].length > 0)) {
+                            hasHistory = true;
+                        }
+                    });
+
+                    const hasPhotos = photoCount > 0;
+                    if (navMode === 'photos' && !hasPhotos) return;
+                    if (navMode === 'history' && !hasHistory) return;
+
+                    const preferredDate = dateList.find(d => (photoDatabase[d]?.length > 0 || rawStreamingData[d]?.length > 0)) || dateList[0] || `${ymStr}-01`;
+
+                    periods.push({
+                        id: `month-${ymStr}`,
+                        type: 'month',
+                        primaryDate: preferredDate,
+                        startDate: dateList[0] || `${ymStr}-01`,
+                        endDate: dateList[dateList.length - 1] || `${ymStr}-01`,
+                        dateList: dateList,
+                        label: formatMonthLabel(ymStr),
+                        photoCount: photoCount,
+                        hasPhotos: hasPhotos,
+                        hasHistory: hasHistory
+                    });
+                });
+
+                activePeriodsList = periods;
+            }
+
+            // 互換性のための activeDatesList の同期
+            activeDatesList = activePeriodsList.map(p => p.primaryDate);
+        }
+
+        // 期間内の写真配列を取得 (各写真オブジェクトに撮影日プロパティを付与)
+        function getPhotosForPeriod(periodItem) {
+            if (!periodItem) return [];
+            if (periodItem.type === 'day') {
+                const photos = photoDatabase[periodItem.primaryDate] || [];
+                const [y, m, d] = periodItem.primaryDate.split('-');
+                photos.forEach(f => {
+                    f._periodDate = `${parseInt(m)}/${parseInt(d)}`;
+                    f._periodFullDate = periodItem.primaryDate;
+                });
+                return photos;
+            }
+
+            const allPhotos = [];
+            periodItem.dateList.forEach(dateStr => {
+                const photos = photoDatabase[dateStr];
+                if (photos && photos.length > 0) {
+                    const [y, m, d] = dateStr.split('-');
+                    photos.forEach(f => {
+                        f._periodDate = `${parseInt(m)}/${parseInt(d)}`;
+                        f._periodFullDate = dateStr;
+                        allPhotos.push(f);
+                    });
+                }
+            });
+            return allPhotos;
+        }
+
+        // 期間内の再生曲TOP10を集計取得 (週・月は総再生時間を自動合算)
+        function getTracksForPeriod(periodItem) {
+            if (!periodItem) return [];
+            if (periodItem.type === 'day') {
+                return getTracksForDate(periodItem.primaryDate);
+            }
+
+            const songMap = new Map(); // key -> { track, artist, album, ms, source, rank }
+
+            periodItem.dateList.forEach(dateStr => {
+                const deleted = deletedTracksData[dateStr] || [];
+
+                // 1. サブスク自動履歴
+                if (rawStreamingData[dateStr]) {
+                    const list = Array.isArray(rawStreamingData[dateStr]) ? rawStreamingData[dateStr] : [rawStreamingData[dateStr]];
+                    list.forEach(t => {
+                        const key = `${t.artist}__SPLIT__${t.track}`;
+                        if (deleted.includes(key) || isSongHidden(t.track, t.artist)) return;
+
+                        const ms = Number(t.ms) || 180000;
+                        if (!songMap.has(key)) {
+                            songMap.set(key, {
+                                track: t.track,
+                                artist: t.artist,
+                                album: t.album || '',
+                                ms: 0,
+                                source: 'streaming'
+                            });
+                        }
+                        const existing = songMap.get(key);
+                        existing.ms += ms;
+                    });
+                }
+
+                // 2. 手動追加曲
+                if (manualTracksData[dateStr]) {
+                    manualTracksData[dateStr].forEach(t => {
+                        const key = `${t.artist}__SPLIT__${t.track}`;
+                        if (deleted.includes(key) || isSongHidden(t.track, t.artist)) return;
+
+                        if (!songMap.has(key)) {
+                            songMap.set(key, {
+                                track: t.track,
+                                artist: t.artist,
+                                album: t.album || '',
+                                ms: 100000000, // 手動曲は優先表示
+                                previewUrl: t.previewUrl,
+                                source: 'manual'
+                            });
+                        } else {
+                            const existing = songMap.get(key);
+                            existing.ms += 100000000;
+                            if (t.previewUrl) existing.previewUrl = t.previewUrl;
+                        }
+                    });
+                }
+            });
+
+            const sortedSongs = Array.from(songMap.values()).sort((a, b) => b.ms - a.ms);
+            return sortedSongs.slice(0, 10).map((t, idx) => ({
+                ...t,
+                rank: idx + 1
+            }));
+        }
+
+        // 単一日付の曲取得 (後方互換性)
         function getTracksForDate(dateStr) {
             const tracks = [];
             const deleted = deletedTracksData[dateStr] || [];
 
-            // 1. サブスク自動TOP5曲
             if (rawStreamingData[dateStr]) {
                 const list = Array.isArray(rawStreamingData[dateStr]) ? rawStreamingData[dateStr] : [rawStreamingData[dateStr]];
                 list.forEach((t, idx) => {
@@ -1836,7 +2237,6 @@
                 });
             }
 
-            // 2. 手動追加曲
             if (manualTracksData[dateStr]) {
                 manualTracksData[dateStr].forEach(t => {
                     const key = `${t.artist}__SPLIT__${t.track}`;
@@ -1849,33 +2249,73 @@
             return tracks.slice(0, 10);
         }
 
-        // ==========================================
-        // 8. 日付のロードと表示
-        // ==========================================
-        function loadDay(index) {
-            if (index < 0 || index >= activeDatesList.length) return;
-            currentIndex = index;
+        // 現在選択中の期間オブジェクト・楽曲・写真へのアクセスヘルパー
+        function getCurrentPeriod() {
+            if (!activePeriodsList || activePeriodsList.length === 0) return null;
+            return activePeriodsList[currentPeriodIndex] || activePeriodsList[0];
+        }
 
-            const dateStr = activeDatesList[index];
-            const [y, m, d] = dateStr.split('-');
-            document.getElementById('current-date-display').innerText = `${y}年${parseInt(m)}月${parseInt(d)}日`;
-            document.getElementById('nav-date-index').innerText = `${index + 1} / ${activeDatesList.length}日`;
+        function getCurrentTracks() {
+            const period = getCurrentPeriod();
+            if (!period) return [];
+            return getTracksForPeriod(period);
+        }
+
+        function getCurrentPhotos() {
+            const period = getCurrentPeriod();
+            if (!period) return [];
+            return getPhotosForPeriod(period);
+        }
+
+        // ==========================================
+        // 8. 期間・日付のロードと表示
+        // ==========================================
+        function loadPeriod(index) {
+            if (index < 0 || index >= activePeriodsList.length) return;
+            currentPeriodIndex = index;
+            currentIndex = index; // 互換性維持
+
+            const period = activePeriodsList[index];
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+
+            document.getElementById('current-date-display').innerText = period.label;
             
-            document.getElementById('prev-btn').disabled = (index === 0);
-            document.getElementById('next-btn').disabled = (index === activeDatesList.length - 1);
+            const unitChar = (period.type === 'week') ? '週' : (period.type === 'month' ? 'ヶ月' : '日');
+            document.getElementById('nav-date-index').innerText = `${index + 1} / ${activePeriodsList.length}${unitChar}`;
 
-            const photos = photoDatabase[dateStr] || [];
+            const prevLabel = (period.type === 'week') ? '&lt; 前の週' : (period.type === 'month' ? '&lt; 前の月' : '&lt; 前の日');
+            const nextLabel = (period.type === 'week') ? '次の週 &gt;' : (period.type === 'month' ? '次の月 &gt;' : '次の日 &gt;');
+            if (prevBtn) {
+                prevBtn.innerHTML = prevLabel;
+                prevBtn.disabled = (index === 0);
+            }
+            if (nextBtn) {
+                nextBtn.innerHTML = nextLabel;
+                nextBtn.disabled = (index === activePeriodsList.length - 1);
+            }
+
+            // 写真の集計と表示
+            const photos = getPhotosForPeriod(period);
             document.getElementById('photo-count-badge').innerText = `📸 写真: ${photos.length}枚`;
+            displayPhotosForPeriod(period);
 
-            displayPhotosForDate(dateStr);
-
-            const tracks = getTracksForDate(dateStr);
+            // 楽曲の集計と再生
+            const tracks = getTracksForPeriod(period);
             const hitsBanner = document.getElementById('hit-songs-suggest-banner');
             const hitsBannerTitle = document.getElementById('hit-songs-banner-title');
 
             if (tracks.length === 0) {
                 hitsBanner.classList.remove('hidden');
-                const wInfo = getBillboardWeekFromDate(dateStr); hitsBannerTitle.innerText = `当時(${wInfo.year}年${wInfo.month}月 第${wInfo.week}週)のBillboard JAPAN週間TOP10`;
+                const wInfo = getBillboardWeekFromDate(period.primaryDate);
+                if (period.type === 'month') {
+                    const [y, m] = period.startDate.split('-');
+                    hitsBannerTitle.innerText = `当時(${y}年${parseInt(m)}月)のBillboard JAPANヒット曲`;
+                } else if (period.type === 'week') {
+                    hitsBannerTitle.innerText = `当時(${wInfo.year}年${wInfo.month}月 第${wInfo.week}週)のBillboard JAPAN週間TOP10`;
+                } else {
+                    hitsBannerTitle.innerText = `当時(${wInfo.year}年${wInfo.month}月 第${wInfo.week}週)のBillboard JAPAN週間TOP10`;
+                }
                 
                 document.getElementById('track-name').innerText = '曲が未登録です';
                 document.getElementById('artist-name').innerText = '下のボタンから思い出の曲を追加してください';
@@ -1887,6 +2327,11 @@
                 hitsBanner.classList.add('hidden');
                 playTrack(0);
             }
+        }
+
+        // 後方互換性エイリアス
+        function loadDay(index) {
+            loadPeriod(index);
         }
 
         // ==========================================
@@ -2069,14 +2514,15 @@
 
         async function playTrack(tIndex) {
             activeTrackIndex = tIndex;
-            const dateStr = activeDatesList[currentIndex];
-            const tracks = getTracksForDate(dateStr);
+            const tracks = getCurrentTracks();
             
             if (!tracks || !tracks[tIndex]) return;
             const trackObj = tracks[tIndex];
 
+            const period = getCurrentPeriod();
+            const unitName = (period && period.type === 'week') ? 'その週' : ((period && period.type === 'month') ? 'その月' : 'その日');
             const rankBadges = ['🥇 1位', '🥈 2位', '🥉 3位', '4位', '5位', '6位', '7位', '8位', '9位', '10位'];
-            const rankLabel = trackObj.source === 'streaming' && trackObj.rank ? `🎵 その日${rankBadges[trackObj.rank - 1] || `${trackObj.rank}位`}の曲` : '🔍 追加した思い出の曲';
+            const rankLabel = trackObj.source === 'streaming' && trackObj.rank ? `🎵 ${unitName}${rankBadges[trackObj.rank - 1] || `${trackObj.rank}位`}の曲` : '🔍 追加した思い出の曲';
 
             document.getElementById('track-name').innerText = trackObj.track;
             document.getElementById('artist-name').innerText = trackObj.artist;
@@ -2130,8 +2576,7 @@
         audioPlayerEl.addEventListener('pause', () => document.getElementById('playing-badge').classList.add('hidden'));
         audioPlayerEl.addEventListener('ended', () => {
             document.getElementById('playing-badge').classList.add('hidden');
-            const dateStr = activeDatesList[currentIndex];
-            const tracks = getTracksForDate(dateStr);
+            const tracks = getCurrentTracks();
             if (tracks && activeTrackIndex < tracks.length - 1) {
                 playTrack(activeTrackIndex + 1);
             }
@@ -2141,15 +2586,16 @@
         // 10. プレイリストUI
         // ==========================================
         function renderPlaylistUI() {
-            const dateStr = activeDatesList[currentIndex];
-            const tracks = getTracksForDate(dateStr);
+            const tracks = getCurrentTracks();
             const container = document.getElementById('playlist-container');
             container.innerHTML = '';
 
             document.getElementById('playlist-count').innerText = `${tracks.length}/10曲`;
 
             if (tracks.length === 0) {
-                container.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">この日の曲はありません</p>';
+                const period = getCurrentPeriod();
+                const unitName = (period && period.type === 'week') ? 'この週' : ((period && period.type === 'month') ? 'この月' : 'この日');
+                container.innerHTML = `<p class="text-xs text-gray-400 text-center py-3">${unitName}の曲はありません</p>`;
             }
 
             const rankBadges = ['🥇 1位', '🥈 2位', '🥉 3位', '4位', '5位', '6位', '7位', '8位', '9位', '10位'];
@@ -2185,7 +2631,7 @@
                 itemDiv.querySelector('.delete-song-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (confirm(`「${trackObj.track}」を削除しますか？`)) {
-                        deleteTrackFromDay(dateStr, trackObj);
+                        deleteTrackFromCurrentPeriod(trackObj);
                     }
                 });
 
@@ -2203,29 +2649,39 @@
             }
         }
 
-        async function deleteTrackFromDay(dateStr, trackObj) {
+        async function deleteTrackFromCurrentPeriod(trackObj) {
+            const period = getCurrentPeriod();
             const songKey = `${trackObj.artist}__SPLIT__${trackObj.track}`;
-            if (!deletedTracksData[dateStr]) deletedTracksData[dateStr] = [];
-            if (!deletedTracksData[dateStr].includes(songKey)) {
-                deletedTracksData[dateStr].push(songKey);
-            }
 
-            if (manualTracksData[dateStr]) {
-                manualTracksData[dateStr] = manualTracksData[dateStr].filter(t => !(t.track === trackObj.track && t.artist === trackObj.artist));
-            }
+            const dateList = period ? period.dateList : [activeDatesList[currentIndex]];
+            dateList.forEach(dateStr => {
+                if (!deletedTracksData[dateStr]) deletedTracksData[dateStr] = [];
+                if (!deletedTracksData[dateStr].includes(songKey)) {
+                    deletedTracksData[dateStr].push(songKey);
+                }
+                if (manualTracksData[dateStr]) {
+                    manualTracksData[dateStr] = manualTracksData[dateStr].filter(t => !(t.track === trackObj.track && t.artist === trackObj.artist));
+                }
+            });
 
             await localforage.setItem('saved_deleted_tracks', deletedTracksData);
             await localforage.setItem('saved_manual_tracks', manualTracksData);
 
-            refreshDayMusic();
+            refreshPeriodMusic();
+        }
+
+        // 後方互換性用
+        async function deleteTrackFromDay(dateStr, trackObj) {
+            await deleteTrackFromCurrentPeriod(trackObj);
         }
 
         async function addSongToCurrentDay(trackName, artistName, previewUrl) {
-            const dateStr = activeDatesList[currentIndex];
-            const tracks = getTracksForDate(dateStr);
+            const period = getCurrentPeriod();
+            const dateStr = period ? period.primaryDate : activeDatesList[currentIndex];
+            const tracks = getCurrentTracks();
 
             if (tracks.length >= 10) {
-                alert("1日に追加できる曲は最大10曲までです。");
+                alert("追加できる曲は最大10曲までです。");
                 return;
             }
 
@@ -2237,28 +2693,40 @@
                 source: 'manual'
             });
 
-            if (deletedTracksData[dateStr]) {
-                const key = `${artistName}__SPLIT__${trackName}`;
-                deletedTracksData[dateStr] = deletedTracksData[dateStr].filter(k => k !== key);
-                await localforage.setItem('saved_deleted_tracks', deletedTracksData);
-            }
-
+            // 削除フラグがあれば期間内の日すべてで解除
+            const dateList = period ? period.dateList : [dateStr];
+            dateList.forEach(d => {
+                if (deletedTracksData[d]) {
+                    const key = `${artistName}__SPLIT__${trackName}`;
+                    deletedTracksData[d] = deletedTracksData[d].filter(k => k !== key);
+                }
+            });
+            await localforage.setItem('saved_deleted_tracks', deletedTracksData);
             await localforage.setItem('saved_manual_tracks', manualTracksData);
             
-            const updatedTracks = getTracksForDate(dateStr);
-            refreshDayMusic(updatedTracks.length - 1);
+            const updatedTracks = getCurrentTracks();
+            refreshPeriodMusic(updatedTracks.length - 1);
         }
 
-        function refreshDayMusic(targetTrackIndex = null) {
-            const dateStr = activeDatesList[currentIndex];
-            const tracks = getTracksForDate(dateStr);
+        function refreshPeriodMusic(targetTrackIndex = null) {
+            const period = getCurrentPeriod();
+            const tracks = getCurrentTracks();
             const hitsBanner = document.getElementById('hit-songs-suggest-banner');
             const hitsBannerTitle = document.getElementById('hit-songs-banner-title');
 
             if (tracks.length === 0) {
                 hitsBanner.classList.remove('hidden');
-                const wInfo = getBillboardWeekFromDate(dateStr);
-                hitsBannerTitle.innerText = `当時(${wInfo.year}年${wInfo.month}月 第${wInfo.week}週)のBillboard JAPAN週間TOP10`;
+                const primaryDate = period ? period.primaryDate : activeDatesList[currentIndex];
+                const wInfo = getBillboardWeekFromDate(primaryDate);
+
+                if (period && period.type === 'month') {
+                    const [y, m] = period.startDate.split('-');
+                    hitsBannerTitle.innerText = `当時(${y}年${parseInt(m)}月)のBillboard JAPANヒット曲`;
+                } else if (period && period.type === 'week') {
+                    hitsBannerTitle.innerText = `当時(${wInfo.year}年${wInfo.month}月 第${wInfo.week}週)のBillboard JAPAN週間TOP10`;
+                } else {
+                    hitsBannerTitle.innerText = `当時(${wInfo.year}年${wInfo.month}月 第${wInfo.week}週)のBillboard JAPAN週間TOP10`;
+                }
                 
                 document.getElementById('track-name').innerText = '曲が未登録です';
                 document.getElementById('artist-name').innerText = '下のボタンから思い出の曲を追加してください';
@@ -2273,6 +2741,11 @@
                     : Math.min(activeTrackIndex, tracks.length - 1);
                 playTrack(nextIdx);
             }
+        }
+
+        // 後方互換性エイリアス
+        function refreshDayMusic(targetTrackIndex = null) {
+            refreshPeriodMusic(targetTrackIndex);
         }
 
         // ==========================================
@@ -2682,8 +3155,9 @@
         const calendarInput = document.getElementById('calendar-input');
 
         document.getElementById('date-picker-btn').addEventListener('click', () => {
-            const currentDateStr = activeDatesList[currentIndex];
-            calendarInput.value = currentDateStr || '';
+            const period = getCurrentPeriod();
+            const currentDateStr = period ? period.primaryDate : (activeDatesList[currentIndex] || '');
+            calendarInput.value = currentDateStr;
             renderPhotoDatesList();
             dateModal.classList.remove('hidden');
         });
@@ -2699,40 +3173,55 @@
         });
 
         function jumpToDate(dateStr) {
-            let idx = activeDatesList.indexOf(dateStr);
+            let idx = -1;
+            if (timeSpanMode === 'day') {
+                idx = activePeriodsList.findIndex(p => p.primaryDate === dateStr);
+            } else {
+                idx = activePeriodsList.findIndex(p => p.dateList.includes(dateStr));
+            }
+
             if (idx === -1) {
                 if (!isDateHidden(dateStr)) {
-                    activeDatesList.push(dateStr);
-                    activeDatesList.sort((a, b) => new Date(a) - new Date(b));
-                    idx = activeDatesList.indexOf(dateStr);
+                    navMode = 'all';
+                    setNavMode('all', false);
+                    if (timeSpanMode === 'day') {
+                        idx = activePeriodsList.findIndex(p => p.primaryDate === dateStr);
+                    } else {
+                        idx = activePeriodsList.findIndex(p => p.dateList.includes(dateStr));
+                    }
                 } else {
                     alert("指定した日付は非表示期間に含まれています。");
                     return;
                 }
             }
-            loadDay(idx);
+
+            if (idx !== -1) {
+                loadPeriod(idx);
+            }
         }
 
         function renderPhotoDatesList() {
             const listEl = document.getElementById('photo-dates-list');
             listEl.innerHTML = '';
 
-            const photoDates = Object.keys(photoDatabase).sort((a, b) => new Date(b) - new Date(a));
-            if (photoDates.length === 0) {
+            const periodsWithPhotos = activePeriodsList.filter(p => p.photoCount > 0);
+            if (periodsWithPhotos.length === 0) {
                 listEl.innerHTML = '<p class="text-[11px] text-gray-400">ストックされた写真はありません</p>';
                 return;
             }
 
-            photoDates.forEach(d => {
-                const count = photoDatabase[d].length;
+            periodsWithPhotos.slice().reverse().forEach(p => {
                 const btn = document.createElement('button');
-                btn.className = 'w-full text-left p-1.5 rounded-lg hover:bg-blue-50 text-gray-700 flex justify-between items-center transition';
+                btn.className = 'w-full text-left p-1.5 rounded-lg hover:bg-blue-50 text-gray-700 flex justify-between items-center transition cursor-pointer';
                 btn.innerHTML = `
-                    <span>${d}</span>
-                    <span class="text-[10px] bg-pink-100 text-pink-600 px-1.5 py-0.5 rounded-full font-bold">${count}枚</span>
+                    <span class="text-xs font-medium">${escapeHtml(p.label)}</span>
+                    <span class="text-[10px] bg-pink-100 text-pink-600 px-1.5 py-0.5 rounded-full font-bold">${p.photoCount}枚</span>
                 `;
                 btn.onclick = () => {
-                    jumpToDate(d);
+                    const idx = activePeriodsList.indexOf(p);
+                    if (idx !== -1) {
+                        loadPeriod(idx);
+                    }
                     dateModal.classList.add('hidden');
                 };
                 listEl.appendChild(btn);
@@ -3038,7 +3527,9 @@
             return url;
         }
 
-        function displayPhotosForDate(dateString, forceRefresh = false) {
+        let currentDisplayedPeriodId = null;
+
+        function displayPhotosForPeriod(period, forceRefresh = false) {
             const mainA = document.getElementById('photo-main-a');
             const mainB = document.getElementById('photo-main-b');
             const blurA = document.getElementById('photo-blur-a');
@@ -3047,12 +3538,17 @@
             const errorLayer = document.getElementById('photo-error-layer');
             const loadingLayer = document.getElementById('photo-loading-layer');
             const indicator = document.getElementById('slide-indicator');
+            const emptyText = document.getElementById('photo-empty-text');
 
-            // 同一日付でかつ強制更新フラグがない場合は、既存のスライドショー表示を滑らかに維持
-            if (!forceRefresh && currentDisplayedPhotoDate === dateString && photoDatabase[dateString]?.length > 0) {
+            const periodId = period ? period.id : null;
+            const photos = period ? getPhotosForPeriod(period) : [];
+            currentPeriodPhotos = photos; // グローバル保持
+
+            // 同一期間でかつ強制更新フラグがない場合は、既存のスライドショー表示を滑らかに維持
+            if (!forceRefresh && currentDisplayedPeriodId === periodId && photos.length > 0) {
                 return;
             }
-            currentDisplayedPhotoDate = dateString;
+            currentDisplayedPeriodId = periodId;
 
             if (slideShowInterval) {
                 clearInterval(slideShowInterval);
@@ -3068,7 +3564,10 @@
             if (errorLayer) errorLayer.classList.add('hidden');
             if (loadingLayer) loadingLayer.classList.add('hidden');
 
-            const photos = photoDatabase[dateString];
+            if (emptyText) {
+                const unitName = (period && period.type === 'week') ? 'この週' : ((period && period.type === 'month') ? 'この月' : 'この日');
+                emptyText.innerHTML = `${unitName}の写真はありませんでした<br><span class="text-[11px] text-gray-400">前後の期間に移動するか、写真を追加できます</span>`;
+            }
 
             if (photos && photos.length > 0) {
                 emptyLayer.classList.add('hidden');
@@ -3087,6 +3586,9 @@
             } else {
                 updatePhotoNavUI([], 0);
                 currentPhotoSrc = null;
+                const subDateBadge = document.getElementById('photo-date-sub-badge');
+                if (subDateBadge) subDateBadge.classList.add('hidden');
+
                 if (mainA) { mainA.style.transition = 'none'; mainA.style.opacity = '0'; mainA.src = ''; }
                 if (mainB) { mainB.style.transition = 'none'; mainB.style.opacity = '0'; mainB.src = ''; }
                 if (blurA) { blurA.style.transition = 'none'; blurA.style.opacity = '0'; blurA.src = ''; }
@@ -3094,6 +3596,20 @@
                 if (loadingLayer) loadingLayer.classList.add('hidden');
                 emptyLayer.classList.remove('hidden');
             }
+        }
+
+        // 後方互換性用
+        function displayPhotosForDate(dateString, forceRefresh = false) {
+            const period = activePeriodsList.find(p => p.primaryDate === dateString) || {
+                id: dateString,
+                type: 'day',
+                primaryDate: dateString,
+                startDate: dateString,
+                endDate: dateString,
+                dateList: [dateString],
+                label: dateString
+            };
+            displayPhotosForPeriod(period, forceRefresh);
         }
 
         async function showSlidePhoto(photos, idx, isSlideSwitch = false) {
@@ -3115,6 +3631,17 @@
             // 初回表示時のみスピナーを表示。切り替え時は画面を暗転させない！
             if (!isSlideSwitch && !currentPhotoSrc && loadingLayer) {
                 loadingLayer.classList.remove('hidden');
+            }
+
+            // 撮影日サブバッジの更新 (週・月振り返り時は写真ごとの日付を表示)
+            const subDateBadge = document.getElementById('photo-date-sub-badge');
+            if (subDateBadge) {
+                if (timeSpanMode !== 'day' && file && file._periodDate) {
+                    subDateBadge.innerText = `📅 ${file._periodDate}`;
+                    subDateBadge.classList.remove('hidden');
+                } else {
+                    subDateBadge.classList.add('hidden');
+                }
             }
 
             const nextUrl = await getPhotoUrl(file);
@@ -3158,7 +3685,7 @@
             }
 
             if (!isSlideSwitch || !currentPhotoSrc) {
-                // 初回表示 または 日付変更時: 即時表示
+                // 初回表示 または 期間変更時: 即時表示
                 mainA.style.transition = 'none';
                 blurA.style.transition = 'none';
                 mainB.style.transition = 'none';
@@ -3179,7 +3706,6 @@
             }
 
             // スライドショー定期切り替え・手動切り替え: 前面オーバーレイ方式
-            // 背面(A)は 100% 不透明のまま維持！前面(B)に新画像をセットして 0 -> 1 へ滑らかにフェードイン
             mainB.style.transition = 'none';
             blurB.style.transition = 'none';
             mainB.style.opacity = '0';
@@ -3275,8 +3801,7 @@
 
         // Page Visibility API: 別タブやアプリ切り替えによるフリーズ・ブラックアウトを完全防止
         document.addEventListener('visibilitychange', () => {
-            const dateString = (activeDatesList && activeDatesList[currentIndex]) ? activeDatesList[currentIndex] : null;
-            const photos = dateString ? photoDatabase[dateString] : null;
+            const photos = currentPeriodPhotos;
 
             if (document.hidden) {
                 if (slideShowInterval) {
@@ -3307,8 +3832,7 @@
                 dot.title = `${i + 1}枚目の写真へ`;
                 dot.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const dateString = activeDatesList[currentIndex];
-                    const photos = photoDatabase[dateString];
+                    const photos = currentPeriodPhotos;
                     if (!photos || i >= photos.length) return;
                     slidePhotoIndex = i;
                     showSlidePhoto(photos, slidePhotoIndex, true);
@@ -3323,8 +3847,7 @@
         // 手動写真ナビゲーション (前の写真へ / 次の写真へ)
         document.getElementById('photo-prev-btn').addEventListener('click', (e) => {
             e.stopPropagation();
-            const dateString = activeDatesList[currentIndex];
-            const photos = photoDatabase[dateString];
+            const photos = currentPeriodPhotos;
             if (!photos || photos.length <= 1) return;
 
             slidePhotoIndex = (slidePhotoIndex - 1 + photos.length) % photos.length;
@@ -3336,8 +3859,7 @@
 
         document.getElementById('photo-next-btn').addEventListener('click', (e) => {
             e.stopPropagation();
-            const dateString = activeDatesList[currentIndex];
-            const photos = photoDatabase[dateString];
+            const photos = currentPeriodPhotos;
             if (!photos || photos.length <= 1) return;
 
             slidePhotoIndex = (slidePhotoIndex + 1) % photos.length;
@@ -3351,11 +3873,11 @@
         // 16. 前後ボタン & キーボードナビゲーション
         // ==========================================
         document.getElementById('prev-btn').addEventListener('click', () => {
-            if (currentIndex > 0) loadDay(currentIndex - 1);
+            if (currentPeriodIndex > 0) loadPeriod(currentPeriodIndex - 1);
         });
 
         document.getElementById('next-btn').addEventListener('click', () => {
-            if (currentIndex < activeDatesList.length - 1) loadDay(currentIndex + 1);
+            if (currentPeriodIndex < activePeriodsList.length - 1) loadPeriod(currentPeriodIndex + 1);
         });
 
         window.addEventListener('keydown', (e) => {
