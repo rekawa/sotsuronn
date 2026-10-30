@@ -33,21 +33,40 @@
         <div>
             <!-- ヘッダー -->
             <div class="bg-blue-600 text-white py-3.5 px-4 rounded-b-2xl shadow-md mb-4 relative flex items-center justify-between">
-                <div class="flex-1 text-center pl-6">
+                <div class="flex-1 text-center pl-12">
                     <div class="flex items-center justify-center space-x-1.5">
                         <h1 class="text-lg font-bold tracking-wide">思い出音楽プレーヤー</h1>
                         <span class="text-[10px] bg-blue-500/80 text-white px-2 py-0.5 rounded-full font-medium">v2.8</span>
                     </div>
                     <p class="text-[11px] opacity-90">写真と音楽で、あの日を振り返る</p>
                 </div>
-                <button id="open-settings-btn" title="設定" class="text-white hover:bg-blue-700 active:bg-blue-800 p-2 rounded-full transition text-sm">
-                    ⚙️
-                </button>
+                <div class="flex items-center space-x-1.5">
+                    <button id="open-guide-btn" title="操作説明・使い方ガイド" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/35 active:scale-90 text-white flex items-center justify-center font-bold text-sm shadow-xs transition backdrop-blur-xs cursor-pointer border border-white/20">
+                        ？
+                    </button>
+                    <button id="open-settings-btn" title="設定" class="text-white hover:bg-blue-700 active:bg-blue-800 p-2 rounded-full transition text-sm cursor-pointer">
+                        ⚙️
+                    </button>
+                </div>
             </div>
             
             <div class="px-4">
                 <!-- 設定セクション（データ入力画面） -->
                 <div id="setup-section">
+                    <!-- 操作説明バナー -->
+                    <div class="mb-3.5 p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-xl flex items-center justify-between shadow-2xs">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shadow-xs">？</span>
+                            <div>
+                                <p class="text-xs font-bold text-blue-900 leading-tight">初めての方へ: アプリの操作説明</p>
+                                <p class="text-[10px] text-blue-700/80">写真や履歴の読み込み手順を確認できます</p>
+                            </div>
+                        </div>
+                        <button id="setup-open-guide-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-xs transition active:scale-95 whitespace-nowrap cursor-pointer">
+                            説明を見る ›
+                        </button>
+                    </div>
+
                     <!-- ステップ1: サブスク再生履歴の読み込み -->
                     <div class="mb-4 p-4 border rounded-xl bg-gray-50 shadow-sm relative">
                         <h2 class="text-sm font-bold mb-1.5 text-gray-700 flex items-center">
@@ -413,6 +432,63 @@
                             </button>
                         </div>
                         <div id="hidden-periods-list" class="mt-2 space-y-1"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- 操作説明モーダル (ガイドビューアー) -->
+        <!-- ========================================== -->
+        <div id="guide-modal" class="hidden fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs custom-modal select-none">
+            <div class="bg-gray-900 border border-gray-750 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh]">
+                <!-- モーダルヘッダー -->
+                <div class="bg-gray-800/90 px-4 py-2.5 border-b border-gray-700 flex justify-between items-center text-white">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-black shadow-xs">？</span>
+                        <div>
+                            <h3 class="font-bold text-xs tracking-wide">アプリ操作説明ガイド</h3>
+                            <p id="guide-step-counter" class="text-[10px] text-gray-400 font-medium">1 / 10</p>
+                        </div>
+                    </div>
+                    <button id="close-guide-btn" class="w-7 h-7 rounded-full bg-gray-700/80 hover:bg-gray-600 text-gray-300 hover:text-white flex items-center justify-center transition active:scale-90 text-sm font-bold cursor-pointer" title="閉じる (Esc)">
+                        &times;
+                    </button>
+                </div>
+
+                <!-- ステップタイトル & 解説バナー -->
+                <div class="px-3.5 py-2 bg-gray-800/60 border-b border-gray-700/60 text-center">
+                    <h4 id="guide-step-title" class="text-xs font-bold text-blue-300 leading-tight mb-0.5">ステップ 1: 音楽サブスク履歴の読み込み</h4>
+                    <p id="guide-step-desc" class="text-[11px] text-gray-300 leading-snug">「ファイル選択」を押して、音楽サブスクの視聴履歴データを読み込みます</p>
+                </div>
+
+                <!-- 画像ビューアーエリア -->
+                <div class="relative flex-1 bg-black flex items-center justify-center p-1.5 overflow-hidden min-h-[360px] max-h-[58vh]">
+                    <img id="guide-image" src="181230.jpg" alt="操作説明画像" class="max-h-full max-w-full object-contain rounded-lg shadow-md transition-opacity duration-150 cursor-pointer" title="タップで次の説明へ">
+
+                    <!-- 前へボタン (オーバーレイ) -->
+                    <button id="guide-prev-btn" class="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center font-bold text-sm shadow transition active:scale-90 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed">
+                        ‹
+                    </button>
+                    <!-- 次へボタン (オーバーレイ) -->
+                    <button id="guide-next-btn" class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center font-bold text-sm shadow transition active:scale-90 cursor-pointer">
+                        ›
+                    </button>
+                </div>
+
+                <!-- モーダルフッター -->
+                <div class="bg-gray-800/90 px-3.5 py-2.5 border-t border-gray-700 flex flex-col items-center space-y-2">
+                    <!-- インジケータードット (10個) -->
+                    <div id="guide-dots-container" class="flex items-center space-x-1.5 py-0.5"></div>
+
+                    <!-- 前へ / 次へ ボタン -->
+                    <div class="w-full flex items-center justify-between space-x-2 pt-0.5">
+                        <button id="guide-bottom-prev-btn" class="flex-1 py-1.5 px-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-bold transition active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">
+                            ‹ 前へ
+                        </button>
+                        <button id="guide-bottom-next-btn" class="flex-1 py-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow transition active:scale-95 cursor-pointer">
+                            次へ ›
+                        </button>
                     </div>
                 </div>
             </div>
@@ -2692,10 +2768,191 @@
             alert("非表示期間を追加しました。");
         });
 
+        // ==========================================
+        // 14.5 アプリ操作説明ガイド (ステップバイステップ・ビューアー)
+        // ==========================================
+        const guideModal = document.getElementById('guide-modal');
+        const guideData = [
+            {
+                src: '181230.jpg',
+                title: 'ステップ 1: 音楽サブスク履歴の読み込み',
+                desc: '「ファイル選択」を押して、音楽サブスクの視聴履歴データ（Spotify JSON または Apple Music CSV）を読み込みます。'
+            },
+            {
+                src: '181221.jpg',
+                title: 'ステップ 2: 思い出写真の選択',
+                desc: '「ファイル選択」を押して、スマホのカメラロールから思い出の写真を読み込ませます（一度に100枚まで・何回でも追加可能）。'
+            },
+            {
+                src: '181222.jpg',
+                title: 'ステップ 3: 振り返りの開始',
+                desc: 'ファイルの読み込みが終わったら、画面下の「思い出を振り返る」ボタンを押して次へ進みます。'
+            },
+            {
+                src: '181223.jpg',
+                title: 'ステップ 4: メインプレーヤー画面',
+                desc: '思い出音楽プレーヤーが起動し、あの日聴いていた曲と写真が自動で連動して表示されます。'
+            },
+            {
+                src: '181224.jpg',
+                title: 'ステップ 5: 写真と曲の表示エリア',
+                desc: '①画面中央に「思い出写真」が大きく表示され、②下部に「再生中の曲」がリアルタイムに表示されます。'
+            },
+            {
+                src: '181225.jpg',
+                title: 'ステップ 6: 写真スライドショーの操作',
+                desc: '写真は自動でも切り替わります。「‹」「›」ボタンで手動移動でき、「＋写真を追加」からその日の写真を更に追加できます。'
+            },
+            {
+                src: '181226.jpg',
+                title: 'ステップ 7: 当日の曲TOP10が自動再生',
+                desc: '読み込んだ再生履歴データから、その日聴いていたTOP10曲が一覧表示され、自動で順次再生されます。'
+            },
+            {
+                src: '181227.jpg',
+                title: 'ステップ 8: 曲名検索から手動追加',
+                desc: '曲名から手動で曲を追加したい場合は、「＋曲名で検索して追加」を押して好きな曲を検索・追加できます。'
+            },
+            {
+                src: '181228.jpg',
+                title: 'ステップ 9: 当時のヒット曲から追加',
+                desc: '当時の流行曲を追加したい場合は、「Billboard JAPAN 週間TOP10から選ぶ」を押して選択できます。'
+            },
+            {
+                src: '181229.jpg',
+                title: 'ステップ 10: 振り返る方法の切り替え',
+                desc: '「写真のある日」「履歴のある日」「すべての日」から、振り返りたい日の表示方法を選択できます。'
+            }
+        ];
 
-        // ==========================================
-        // 15. 写真表示 & スライドショー (非同期キャンセル・URLキャッシュ・PageVisibility完全対応)
-        // ==========================================
+        let currentGuideIndex = 0;
+        let isGuideImagesPreloaded = false;
+
+        function openGuideModal(startIndex = 0) {
+            currentGuideIndex = startIndex;
+            renderGuideStep();
+            guideModal.classList.remove('hidden');
+            preloadGuideImages();
+        }
+
+        function closeGuideModal() {
+            guideModal.classList.add('hidden');
+        }
+
+        function renderGuideStep() {
+            const step = guideData[currentGuideIndex];
+            if (!step) return;
+
+            const imgEl = document.getElementById('guide-image');
+            const titleEl = document.getElementById('guide-step-title');
+            const descEl = document.getElementById('guide-step-desc');
+            const counterEl = document.getElementById('guide-step-counter');
+            const prevBtn = document.getElementById('guide-prev-btn');
+            const nextBtn = document.getElementById('guide-next-btn');
+            const bPrevBtn = document.getElementById('guide-bottom-prev-btn');
+            const bNextBtn = document.getElementById('guide-bottom-next-btn');
+
+            imgEl.style.opacity = '0.3';
+            imgEl.src = step.src;
+            imgEl.onload = () => { imgEl.style.opacity = '1'; };
+
+            titleEl.innerText = step.title;
+            descEl.innerText = step.desc;
+            counterEl.innerText = `${currentGuideIndex + 1} / ${guideData.length}`;
+
+            const isFirst = (currentGuideIndex === 0);
+            const isLast = (currentGuideIndex === guideData.length - 1);
+
+            prevBtn.disabled = isFirst;
+            bPrevBtn.disabled = isFirst;
+
+            if (isLast) {
+                bNextBtn.innerText = '閉じる ✓';
+                bNextBtn.className = 'flex-1 py-1.5 px-3 rounded-xl bg-green-600 hover:bg-green-500 text-white text-xs font-bold shadow transition active:scale-95 cursor-pointer';
+            } else {
+                bNextBtn.innerText = '次へ ›';
+                bNextBtn.className = 'flex-1 py-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow transition active:scale-95 cursor-pointer';
+            }
+
+            renderGuideDots();
+        }
+
+        function renderGuideDots() {
+            const container = document.getElementById('guide-dots-container');
+            container.innerHTML = '';
+            guideData.forEach((_, idx) => {
+                const dot = document.createElement('button');
+                dot.className = (idx === currentGuideIndex)
+                    ? 'w-4 h-1.5 rounded-full bg-blue-400 transition-all duration-300'
+                    : 'w-1.5 h-1.5 rounded-full bg-gray-600 hover:bg-gray-400 transition-all duration-300 cursor-pointer';
+                dot.title = `${idx + 1}ページ目へ`;
+                dot.onclick = () => {
+                    currentGuideIndex = idx;
+                    renderGuideStep();
+                };
+                container.appendChild(dot);
+            });
+        }
+
+        function nextGuideStep() {
+            if (currentGuideIndex < guideData.length - 1) {
+                currentGuideIndex++;
+                renderGuideStep();
+            } else {
+                closeGuideModal();
+            }
+        }
+
+        function prevGuideStep() {
+            if (currentGuideIndex > 0) {
+                currentGuideIndex--;
+                renderGuideStep();
+            }
+        }
+
+        function preloadGuideImages() {
+            if (isGuideImagesPreloaded) return;
+            isGuideImagesPreloaded = true;
+            guideData.forEach(item => {
+                const img = new Image();
+                img.src = item.src;
+            });
+        }
+
+        // ガイド操作のイベントリスナー
+        document.getElementById('open-guide-btn').addEventListener('click', () => openGuideModal(0));
+        const setupGuideBtn = document.getElementById('setup-open-guide-btn');
+        if (setupGuideBtn) {
+            setupGuideBtn.addEventListener('click', () => openGuideModal(0));
+        }
+        document.getElementById('close-guide-btn').addEventListener('click', closeGuideModal);
+        document.getElementById('guide-prev-btn').addEventListener('click', prevGuideStep);
+        document.getElementById('guide-next-btn').addEventListener('click', nextGuideStep);
+        document.getElementById('guide-bottom-prev-btn').addEventListener('click', prevGuideStep);
+        document.getElementById('guide-bottom-next-btn').addEventListener('click', nextGuideStep);
+        document.getElementById('guide-image').addEventListener('click', nextGuideStep);
+        guideModal.addEventListener('click', (e) => {
+            if (e.target === guideModal) closeGuideModal();
+        });
+
+        // タッチスワイプ対応 (左右スワイプで前後移動)
+        let guideTouchStartX = 0;
+        let guideTouchEndX = 0;
+        const guideImgEl = document.getElementById('guide-image');
+        if (guideImgEl) {
+            guideImgEl.addEventListener('touchstart', (e) => {
+                guideTouchStartX = e.changedTouches[0].screenX;
+            }, { passive: true });
+            guideImgEl.addEventListener('touchend', (e) => {
+                guideTouchEndX = e.changedTouches[0].screenX;
+                const diff = guideTouchStartX - guideTouchEndX;
+                if (diff > 45) {
+                    nextGuideStep();
+                } else if (diff < -45) {
+                    prevGuideStep();
+                }
+            }, { passive: true });
+        }
         let currentPhotoSrc = null;
         let fadeTransitionTimer = null;
         let photoLoadRequestId = 0;              // 非同期レースコンディション防止用リクエストカウンタ
@@ -3098,6 +3355,14 @@
         });
 
         window.addEventListener('keydown', (e) => {
+            // ガイドモーダルが開いている場合
+            if (guideModal && !guideModal.classList.contains('hidden')) {
+                if (e.key === 'Escape') closeGuideModal();
+                else if (e.key === 'ArrowLeft') prevGuideStep();
+                else if (e.key === 'ArrowRight') nextGuideStep();
+                return;
+            }
+
             const hasOpenModal = !searchModal.classList.contains('hidden') || 
                                  !hitsModal.classList.contains('hidden') || 
                                  !dateModal.classList.contains('hidden') || 
