@@ -438,52 +438,52 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 操作説明モーダル (ガイドビューアー) -->
+        <!-- 操作説明モーダル (全画面完全フィット・下部見切れ防止対応) -->
         <!-- ========================================== -->
-        <div id="guide-modal" class="hidden fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs custom-modal select-none">
-            <div class="bg-gray-900 border border-gray-750 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh]">
-                <!-- モーダルヘッダー -->
-                <div class="bg-gray-800/90 px-4 py-2.5 border-b border-gray-700 flex justify-between items-center text-white">
+        <div id="guide-modal" class="hidden fixed inset-0 bg-black/95 z-50 flex items-center justify-center backdrop-blur-sm custom-modal select-none p-1 sm:p-4">
+            <div class="bg-gray-950 border border-gray-800 w-full max-w-md h-full max-h-[100dvh] sm:max-h-[96vh] sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+                <!-- モーダルヘッダー (固定) -->
+                <div class="flex-shrink-0 bg-gray-900/95 px-3.5 py-2 border-b border-gray-800 flex justify-between items-center text-white">
                     <div class="flex items-center space-x-2">
-                        <span class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-black shadow-xs">？</span>
+                        <span class="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-black shadow-xs">？</span>
                         <div>
                             <h3 class="font-bold text-xs tracking-wide">アプリ操作説明ガイド</h3>
                             <p id="guide-step-counter" class="text-[10px] text-gray-400 font-medium">1 / 10</p>
                         </div>
                     </div>
-                    <button id="close-guide-btn" class="w-7 h-7 rounded-full bg-gray-700/80 hover:bg-gray-600 text-gray-300 hover:text-white flex items-center justify-center transition active:scale-90 text-sm font-bold cursor-pointer" title="閉じる (Esc)">
+                    <button id="close-guide-btn" class="w-7 h-7 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white flex items-center justify-center transition active:scale-90 text-sm font-bold cursor-pointer" title="閉じる (Esc)">
                         &times;
                     </button>
                 </div>
 
-                <!-- ステップタイトル & 解説バナー -->
-                <div class="px-3.5 py-2 bg-gray-800/60 border-b border-gray-700/60 text-center">
+                <!-- ステップタイトル & 解説バナー (固定) -->
+                <div class="flex-shrink-0 px-3 py-1.5 bg-gray-900/60 border-b border-gray-800 text-center">
                     <h4 id="guide-step-title" class="text-xs font-bold text-blue-300 leading-tight mb-0.5">ステップ 1: 音楽サブスク履歴の読み込み</h4>
                     <p id="guide-step-desc" class="text-[11px] text-gray-300 leading-snug">「ファイル選択」を押して、音楽サブスクの視聴履歴データを読み込みます</p>
                 </div>
 
-                <!-- 画像ビューアーエリア -->
-                <div class="relative flex-1 bg-black flex items-center justify-center p-1.5 overflow-hidden min-h-[360px] max-h-[58vh]">
-                    <img id="guide-image" src="181230.jpg" alt="操作説明画像" class="max-h-full max-w-full object-contain rounded-lg shadow-md transition-opacity duration-150 cursor-pointer" title="タップで次の説明へ">
+                <!-- 画像ビューアーエリア (上下見切れゼロ・flex-1 min-h-0 + 縦スクロール保険) -->
+                <div class="flex-1 min-h-0 relative w-full bg-black flex items-center justify-center overflow-y-auto p-2" style="-webkit-overflow-scrolling: touch;">
+                    <img id="guide-image" src="181230.jpg" alt="操作説明画像" class="max-h-full max-w-full w-auto h-auto object-contain block mx-auto rounded-lg shadow-2xl transition-opacity duration-150 cursor-pointer" title="タップで次の説明へ">
 
                     <!-- 前へボタン (オーバーレイ) -->
-                    <button id="guide-prev-btn" class="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center font-bold text-sm shadow transition active:scale-90 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed">
+                    <button id="guide-prev-btn" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center font-bold text-base shadow-lg transition active:scale-90 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed">
                         ‹
                     </button>
                     <!-- 次へボタン (オーバーレイ) -->
-                    <button id="guide-next-btn" class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center font-bold text-sm shadow transition active:scale-90 cursor-pointer">
+                    <button id="guide-next-btn" class="absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center font-bold text-base shadow-lg transition active:scale-90 cursor-pointer">
                         ›
                     </button>
                 </div>
 
-                <!-- モーダルフッター -->
-                <div class="bg-gray-800/90 px-3.5 py-2.5 border-t border-gray-700 flex flex-col items-center space-y-2">
+                <!-- モーダルフッター (固定) -->
+                <div class="flex-shrink-0 bg-gray-900/95 px-3.5 py-2 border-t border-gray-800 flex flex-col items-center space-y-1.5" style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom));">
                     <!-- インジケータードット (10個) -->
                     <div id="guide-dots-container" class="flex items-center space-x-1.5 py-0.5"></div>
 
                     <!-- 前へ / 次へ ボタン -->
-                    <div class="w-full flex items-center justify-between space-x-2 pt-0.5">
-                        <button id="guide-bottom-prev-btn" class="flex-1 py-1.5 px-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-bold transition active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">
+                    <div class="w-full flex items-center justify-between space-x-2">
+                        <button id="guide-bottom-prev-btn" class="flex-1 py-1.5 px-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-bold transition active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">
                             ‹ 前へ
                         </button>
                         <button id="guide-bottom-next-btn" class="flex-1 py-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow transition active:scale-95 cursor-pointer">
@@ -2855,6 +2855,10 @@
             imgEl.style.opacity = '0.3';
             imgEl.src = step.src;
             imgEl.onload = () => { imgEl.style.opacity = '1'; };
+
+            // 画像切り替え時にスクロール位置を最上部にリセット
+            const scrollContainer = imgEl.parentElement;
+            if (scrollContainer) scrollContainer.scrollTop = 0;
 
             titleEl.innerText = step.title;
             descEl.innerText = step.desc;
