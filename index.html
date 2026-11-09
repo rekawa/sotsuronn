@@ -29,15 +29,34 @@
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800 pb-10 select-none">
+    <!-- 実験アプリ比較・検証モード切り替えバー (常駐ヘッダー) -->
+    <header id="experiment-mode-bar" class="w-full bg-gray-900 border-b border-gray-800 text-white px-3 py-2 flex flex-col sm:flex-row items-center justify-between gap-2 z-50 sticky top-0 shadow-md">
+        <div class="flex items-center space-x-2 text-center sm:text-left">
+            <span class="text-xs font-bold text-gray-200">実験アプリ切替:</span>
+            <span id="current-mode-description" class="text-[11px] text-blue-300 font-medium">思い出音楽プレーヤー（当時聴いていた曲・流行曲）</span>
+        </div>
+        <div class="inline-flex rounded-lg bg-gray-800 p-0.5 border border-gray-700 text-xs shrink-0">
+            <button id="mode-btn-none" onclick="switchAppMode('none')" class="mode-switch-btn px-2.5 py-1 font-bold rounded-md transition active:scale-95 text-gray-400 hover:text-white cursor-pointer">
+                ① BGMなし
+            </button>
+            <button id="mode-btn-free" onclick="switchAppMode('free')" class="mode-switch-btn px-2.5 py-1 font-bold rounded-md transition active:scale-95 text-gray-400 hover:text-white cursor-pointer">
+                ② フリー音源 (Peritune)
+            </button>
+            <button id="mode-btn-memory" onclick="switchAppMode('memory')" class="mode-switch-btn px-2.5 py-1 font-bold rounded-md transition active:scale-95 bg-blue-600 text-white cursor-pointer shadow-xs">
+                ③ 思い出音楽プレーヤー
+            </button>
+        </div>
+    </header>
+
     <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg relative flex flex-col justify-between">
         <div>
             <!-- ヘッダー -->
             <div class="bg-blue-600 text-white py-3.5 px-4 rounded-b-2xl shadow-md mb-4 relative flex items-center justify-between">
                 <div class="flex-1 text-center pl-12">
                     <div class="flex items-center justify-center space-x-1.5">
-                        <h1 class="text-lg font-bold tracking-wide">思い出音楽プレーヤー</h1>
+                        <h1 id="main-app-title" class="text-lg font-bold tracking-wide">思い出音楽プレーヤー</h1>
                     </div>
-                    <p class="text-[11px] opacity-90">写真と音楽で、あの日を振り返る</p>
+                    <p id="main-app-subtitle" class="text-[11px] opacity-90">写真と音楽で、あの日を振り返る</p>
                 </div>
                 <div class="flex items-center space-x-1.5">
                     <button id="open-guide-btn" title="操作説明・使い方ガイド" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/35 active:scale-90 text-white flex items-center justify-center font-bold text-sm shadow-xs transition backdrop-blur-xs cursor-pointer border border-white/20">
@@ -67,12 +86,17 @@
                     </div>
 
                     <!-- ステップ1: サブスク再生履歴の読み込み -->
-                    <div class="mb-4 p-4 border rounded-xl bg-gray-50 shadow-sm relative">
+                    <div id="step1-streaming-card" class="mb-4 p-4 border rounded-xl bg-gray-50 shadow-sm relative">
                         <h2 class="text-sm font-bold mb-1.5 text-gray-700 flex items-center">
                             <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-xs flex items-center justify-center mr-2 font-black">1</span>
-                            音楽サブスクの履歴を読み込む
+                            <span id="step1-title">音楽サブスクの履歴を読み込む</span>
                         </h2>
                         
+                        <!-- フリー音源 / BGMなしモード時の案内表示 -->
+                        <div id="streaming-mode-skip-notice" class="hidden p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed mb-2 font-medium">
+                            <span id="streaming-mode-skip-text"></span>
+                        </div>
+
                         <div id="streaming-input-area">
                             <p class="text-xs text-gray-500 mb-2 leading-relaxed">
                                 <strong>Spotify</strong> の再生履歴ファイル (<code>.json</code>) または <strong>Apple Music</strong> の履歴ファイル (<code>Apple Music - Play History Daily Tracks.csv</code>) を選択してください。
@@ -255,8 +279,14 @@
                     <!-- 写真スライドインジケーター -->
                     <div id="slide-indicator" class="flex justify-center items-center space-x-1.5 mb-3 hidden"></div>
 
+                    <!-- BGMなしモード時の案内表示枠 -->
+                    <div id="no-bgm-notice-card" class="hidden mb-3.5 p-4 bg-gray-50 border border-gray-200 rounded-2xl text-center shadow-xs">
+                        <p class="text-xs font-bold text-gray-700">BGMなしモード（無音でスライドショーを再生中）</p>
+                        <p class="text-[11px] text-gray-500 mt-1">BGMを流さずに写真のスライドショーのみをお楽しみいただけます</p>
+                    </div>
+
                     <!-- 楽曲情報とオーディオプレーヤー -->
-                    <div class="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 rounded-2xl shadow-sm border border-blue-100 mb-3.5 relative">
+                    <div id="player-music-card" class="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 rounded-2xl shadow-sm border border-blue-100 mb-3.5 relative">
                         <div class="flex items-center justify-between mb-1">
                             <p id="track-source-label" class="text-[11px] text-indigo-600 font-bold">🎵 選択中の楽曲</p>
                             <span id="playing-badge" class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold hidden animate-pulse">再生中</span>
@@ -296,7 +326,12 @@
                                 <p class="text-sm font-bold text-amber-950 leading-snug break-words" id="hit-songs-banner-title">当時のBillboard JAPANヒット曲</p>
                                 <p class="text-xs text-amber-800 mt-1 leading-relaxed break-words" id="hit-songs-banner-subtitle">この期間の履歴がないため、当時のヒット曲から選べます</p>
                             </div>
-                            <div class="shrink-0">
+                            <div class="shrink-0 flex items-center gap-2">
+                                <div id="banner-week-select-container" class="hidden flex items-center gap-1.5">
+                                    <span class="text-xs font-bold text-amber-900 whitespace-nowrap">週:</span>
+                                    <select id="banner-week-select" class="bg-white border border-amber-300 text-amber-900 text-xs font-bold rounded-lg px-2.5 py-1.5 shadow-xs outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer">
+                                    </select>
+                                </div>
                                 <button id="add-all-hits-btn" class="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-lg shadow-xs transition cursor-pointer text-center">
                                     TOP10を一括追加
                                 </button>
@@ -304,19 +339,19 @@
                         </div>
                     </div>
 
-                    <!-- 期間のプレイリスト（TOP10曲） -->
-                    <div>
+                    <!-- 期間のプレイリスト（TOP10曲 / フリー音源一覧） -->
+                    <div id="playlist-section">
                         <div class="flex justify-between items-end mb-2 px-1">
                             <div>
                                 <h3 id="playlist-section-title" class="text-xs font-bold text-gray-700">この日のプレイリスト (TOP10)</h3>
-                                <p class="text-[10px] text-gray-400">タップした曲がすぐに再生されます</p>
+                                <p id="playlist-section-subtitle" class="text-[10px] text-gray-400">タップした曲がすぐに再生されます</p>
                             </div>
                             <span id="playlist-count" class="text-xs text-gray-500 font-medium">0/10曲</span>
                         </div>
                         <div id="playlist-container" class="space-y-1.5 mb-3"></div>
                         
                         <!-- 手動追加ボタン群 -->
-                        <div class="grid grid-cols-2 gap-2">
+                        <div id="music-manual-buttons" class="grid grid-cols-2 gap-2">
                             <button id="open-search-btn" class="border-2 border-dashed border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 font-bold py-2.5 px-2 rounded-xl transition text-xs flex items-center justify-center">
                                 <span class="text-sm mr-1 font-black">+</span> 曲名で検索して追加
                             </button>
@@ -668,8 +703,28 @@
         }
 
         // ==========================================
-        // 2. アプリケーション状態変数
+        // 2. アプリケーション状態変数 & 実験比較モード
         // ==========================================
+        // 実験比較用フリー音源 (PeriTune) 13曲リスト
+        const PERITUNE_TRACKS = [
+            { id: 'peri-1', name: 'Rainwalk', file: 'PeriTune_Rainwalk.mp3', artist: 'PeriTune' },
+            { id: 'peri-2', name: 'Gentle_Brew', file: 'Peritune_Gentle_Brew.mp3', artist: 'PeriTune' },
+            { id: 'peri-3', name: 'Morning Snowfields', file: 'Peritune_Morning_Snowfields.mp3', artist: 'PeriTune' },
+            { id: 'peri-4', name: 'Oceanfront', file: 'PeriTune_Oceanfront.mp3', artist: 'PeriTune' },
+            { id: 'peri-5', name: 'Sunlit_Cafe', file: 'Peritune_Sunlit_Cafe.mp3', artist: 'PeriTune' },
+            { id: 'peri-6', name: 'Backstreet Swing', file: 'PeriTune_Backstreet_Swing.mp3', artist: 'PeriTune' },
+            { id: 'peri-7', name: 'Resort5', file: 'PerituneMaterial_Resort5.mp3', artist: 'PeriTune' },
+            { id: 'peri-8', name: 'Breeze', file: 'PerituneMaterial_Breeze.mp3', artist: 'PeriTune' },
+            { id: 'peri-9', name: 'Memories6', file: 'PerituneMaterial_Memories6.mp3', artist: 'PeriTune' },
+            { id: 'peri-10', name: 'Radiant Sunshine', file: 'PerituneMaterial_Radiant Sunshine.mp3', artist: 'PeriTune' },
+            { id: 'peri-11', name: 'Village_Fete', file: 'PeriTune_Village_Fete.mp3', artist: 'PeriTune' },
+            { id: 'peri-12', name: 'Guitar_Melancholy2', file: 'PerituneMaterial_Guitar_Melancholy2.mp3', artist: 'PeriTune' },
+            { id: 'peri-13', name: 'Daybreak', file: 'PerituneMaterial_Daybreak.mp3', artist: 'PeriTune' }
+        ];
+
+        let currentAppMode = 'memory'; // 'none' (BGMなし) | 'free' (フリー音源) | 'memory' (思い出音楽プレーヤー)
+        let activePerituneIndex = 0;   // フリー音源モードで現在再生中の曲インデックス
+
         let rawStreamingData = {};       // 日別再生曲TOP5配列 { 'YYYY-MM-DD': [ { track, artist, ms, rank, source } ] }
         let loadedStreamingFiles = [];   // 読み込み済みファイルリスト [ { id, name, type, dayCount, items } ]
         let manualTracksData = {};       // 手動追加曲 { 'YYYY-MM-DD': [ { track, artist, previewUrl, source: 'manual' } ] }
@@ -690,6 +745,251 @@
         let slideShowInterval = null;
         let slidePhotoIndex = 0;
         let activePlaybackRequestId = 0;
+
+        // ==========================================
+        // 実験比較モード (①BGMなし / ②フリー音源 / ③思い出音楽) 管理
+        // ==========================================
+        function initAppMode() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const qMode = urlParams.get('mode');
+                if (['none', 'free', 'memory'].includes(qMode)) {
+                    currentAppMode = qMode;
+                } else {
+                    const saved = localStorage.getItem('study_app_mode');
+                    if (['none', 'free', 'memory'].includes(saved)) {
+                        currentAppMode = saved;
+                    }
+                }
+            } catch(e) {}
+            updateModeSwitchBarUI();
+            renderCurrentAppModeHome();
+        }
+
+        function switchAppMode(mode) {
+            if (!['memory', 'free', 'none'].includes(mode)) mode = 'memory';
+            currentAppMode = mode;
+            try {
+                localStorage.setItem('study_app_mode', mode);
+            } catch(e) {}
+
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('mode', mode);
+                window.history.replaceState({}, '', url.toString());
+            } catch(e) {}
+
+            updateModeSwitchBarUI();
+
+            const setupSection = document.getElementById('setup-section');
+            const playerSection = document.getElementById('player-section');
+
+            if (setupSection && !setupSection.classList.contains('hidden')) {
+                renderCurrentAppModeHome();
+            } else if (playerSection && !playerSection.classList.contains('hidden')) {
+                applyAppModeToPlayer();
+            }
+
+            const modeLabels = {
+                'memory': '③ 思い出音楽プレーヤー（当時聴いていた曲・流行曲）',
+                'free': '② フリー音源（PeriTune 13曲）',
+                'none': '① BGMなし（無音スライドショー）'
+            };
+            showToast(`${modeLabels[mode]} に切り替えました`);
+        }
+
+        function updateModeSwitchBarUI() {
+            const btnMemory = document.getElementById('mode-btn-memory');
+            const btnFree = document.getElementById('mode-btn-free');
+            const btnNone = document.getElementById('mode-btn-none');
+            const descEl = document.getElementById('current-mode-description');
+            const titleEl = document.getElementById('main-app-title');
+            const subtitleEl = document.getElementById('main-app-subtitle');
+
+            const activeClass = "mode-switch-btn px-2.5 py-1 font-bold rounded-md transition active:scale-95 bg-blue-600 text-white cursor-pointer shadow-xs";
+            const inactiveClass = "mode-switch-btn px-2.5 py-1 font-bold rounded-md transition active:scale-95 text-gray-400 hover:text-white cursor-pointer";
+
+            if (btnMemory) btnMemory.className = (currentAppMode === 'memory') ? activeClass : inactiveClass;
+            if (btnFree) btnFree.className = (currentAppMode === 'free') ? activeClass : inactiveClass;
+            if (btnNone) btnNone.className = (currentAppMode === 'none') ? activeClass : inactiveClass;
+
+            if (currentAppMode === 'none') {
+                if (descEl) descEl.innerText = "① BGMなし（無音でスライドショー鑑賞）";
+                if (titleEl) titleEl.innerText = "スライドショー (BGMなし)";
+                if (subtitleEl) subtitleEl.innerText = "静かに写真と向き合い、あの日を振り返る";
+            } else if (currentAppMode === 'free') {
+                if (descEl) descEl.innerText = "② フリー音源（PeriTune素材 13曲から選択）";
+                if (titleEl) titleEl.innerText = "スライドショー (フリーBGM)";
+                if (subtitleEl) subtitleEl.innerText = "PeriTuneの音楽とともに思い出を楽しむ";
+            } else {
+                if (descEl) descEl.innerText = "③ 思い出音楽プレーヤー（当時聴いていた曲・流行曲）";
+                if (titleEl) titleEl.innerText = "思い出音楽プレーヤー";
+                if (subtitleEl) subtitleEl.innerText = "写真と音楽で、あの日を振り返る";
+            }
+        }
+
+        function renderCurrentAppModeHome() {
+            const skipNotice = document.getElementById('streaming-mode-skip-notice');
+            const skipText = document.getElementById('streaming-mode-skip-text');
+            const inputArea = document.getElementById('streaming-input-area');
+            const statusArea = document.getElementById('streaming-status-area');
+            const step1Title = document.getElementById('step1-title');
+
+            if (currentAppMode === 'none') {
+                if (step1Title) step1Title.innerText = "BGMなしモード（音楽履歴の読み込み不要）";
+                if (skipNotice) {
+                    skipNotice.classList.remove('hidden');
+                    if (skipText) skipText.innerHTML = "<strong>【① BGMなしモード】</strong><br>BGMを流さずにスライドショーのみを再生するモードです。音楽サブスク履歴の読み込みは不要です。下のステップ2から写真を選択してください。";
+                }
+                if (inputArea) inputArea.classList.add('hidden');
+                if (statusArea) statusArea.classList.add('hidden');
+            } else if (currentAppMode === 'free') {
+                if (step1Title) step1Title.innerText = "フリー音源モード（音楽履歴の読み込み不要）";
+                if (skipNotice) {
+                    skipNotice.classList.remove('hidden');
+                    if (skipText) skipText.innerHTML = "<strong>【② フリー音源 (PeriTune) モード】</strong><br>用意された13曲のフリー音源からBGMを選択するモードです。音楽サブスク履歴の読み込みは不要です。下のステップ2から写真を選択してください。";
+                }
+                if (inputArea) inputArea.classList.add('hidden');
+                if (statusArea) statusArea.classList.add('hidden');
+            } else {
+                if (step1Title) step1Title.innerText = "音楽サブスクの履歴を読み込む";
+                if (skipNotice) skipNotice.classList.add('hidden');
+                if (inputArea) inputArea.classList.remove('hidden');
+                if (statusArea && rawStreamingData && Object.keys(rawStreamingData).length > 0) {
+                    statusArea.classList.remove('hidden');
+                }
+            }
+
+            checkReadyState();
+        }
+
+        function applyAppModeToPlayer(period = getCurrentPeriod()) {
+            const noBgmCard = document.getElementById('no-bgm-notice-card');
+            const playerMusicCard = document.getElementById('player-music-card');
+            const hitsBanner = document.getElementById('hit-songs-suggest-banner');
+            const playlistSection = document.getElementById('playlist-section');
+            const manualButtons = document.getElementById('music-manual-buttons');
+            const audioPlayer = document.getElementById('audio-player');
+            const playingBadge = document.getElementById('playing-badge');
+
+            if (currentAppMode === 'none') {
+                // ① BGMなしモード
+                if (audioPlayer) {
+                    audioPlayer.pause();
+                    audioPlayer.src = '';
+                }
+                if (playingBadge) playingBadge.classList.add('hidden');
+
+                if (noBgmCard) noBgmCard.classList.remove('hidden');
+                if (playerMusicCard) playerMusicCard.classList.add('hidden');
+                if (hitsBanner) hitsBanner.classList.add('hidden');
+                if (playlistSection) playlistSection.classList.add('hidden');
+                if (manualButtons) manualButtons.classList.add('hidden');
+            } else if (currentAppMode === 'free') {
+                // ② フリー音源モード (PeriTune)
+                if (noBgmCard) noBgmCard.classList.add('hidden');
+                if (playerMusicCard) playerMusicCard.classList.remove('hidden');
+                if (hitsBanner) hitsBanner.classList.add('hidden');
+                if (manualButtons) manualButtons.classList.add('hidden');
+                if (playlistSection) playlistSection.classList.remove('hidden');
+
+                const audioStatus = document.getElementById('audio-status');
+                const audioSearching = document.getElementById('audio-searching');
+                if (audioStatus) audioStatus.classList.add('hidden');
+                if (audioSearching) audioSearching.classList.add('hidden');
+
+                renderPeritunePlaylistUI();
+                playPerituneTrack(activePerituneIndex);
+            } else {
+                // ③ 思い出音楽プレーヤー (メイン)
+                if (noBgmCard) noBgmCard.classList.add('hidden');
+                if (playerMusicCard) playerMusicCard.classList.remove('hidden');
+                if (playlistSection) playlistSection.classList.remove('hidden');
+                if (manualButtons) manualButtons.classList.remove('hidden');
+
+                const tracks = period ? getTracksForPeriod(period) : getCurrentTracks();
+                updatePeriodBannerAndTitles(period, tracks);
+
+                if (tracks.length === 0) {
+                    document.getElementById('track-name').innerText = '曲が未登録です';
+                    document.getElementById('artist-name').innerText = '下のボタンから当時のヒット曲を追加してください';
+                    document.getElementById('track-source-label').innerText = '🎵 楽曲未選択';
+                    if (audioPlayer) audioPlayer.src = '';
+                    if (playingBadge) playingBadge.classList.add('hidden');
+                    renderPlaylistUI();
+                } else {
+                    playTrack(activeTrackIndex || 0);
+                }
+            }
+        }
+
+        function playPerituneTrack(index) {
+            if (index < 0 || index >= PERITUNE_TRACKS.length) index = 0;
+            activePerituneIndex = index;
+            const t = PERITUNE_TRACKS[index];
+            
+            const trackNameEl = document.getElementById('track-name');
+            const artistNameEl = document.getElementById('artist-name');
+            const sourceLabelEl = document.getElementById('track-source-label');
+            const audioPlayer = document.getElementById('audio-player');
+            const playingBadge = document.getElementById('playing-badge');
+            const audioStatus = document.getElementById('audio-status');
+            const audioSearching = document.getElementById('audio-searching');
+
+            if (trackNameEl) trackNameEl.innerText = t.name;
+            if (artistNameEl) artistNameEl.innerText = 'PeriTune (フリー音楽素材)';
+            if (sourceLabelEl) sourceLabelEl.innerText = '🎵 フリー音源 (PeriTune)';
+            if (audioStatus) audioStatus.classList.add('hidden');
+            if (audioSearching) audioSearching.classList.add('hidden');
+
+            if (audioPlayer) {
+                audioPlayer.src = encodeURI(t.file);
+                audioPlayer.loop = true; // フリーBGMはループ再生
+                audioPlayer.play().then(() => {
+                    if (playingBadge) playingBadge.classList.remove('hidden');
+                }).catch(() => {
+                    if (playingBadge) playingBadge.classList.add('hidden');
+                });
+            }
+            renderPeritunePlaylistUI();
+        }
+
+        function renderPeritunePlaylistUI() {
+            const container = document.getElementById('playlist-container');
+            const titleEl = document.getElementById('playlist-section-title');
+            const subtitleEl = document.getElementById('playlist-section-subtitle');
+            const countEl = document.getElementById('playlist-count');
+
+            if (titleEl) titleEl.innerText = 'フリーBGM一覧 (全13曲)';
+            if (subtitleEl) subtitleEl.innerText = 'タップした曲がすぐにスライドショーのBGMになります';
+            if (countEl) countEl.innerText = `${PERITUNE_TRACKS.length}曲`;
+
+            if (!container) return;
+            container.innerHTML = '';
+
+            PERITUNE_TRACKS.forEach((t, idx) => {
+                const isPlaying = (idx === activePerituneIndex);
+                const div = document.createElement('div');
+                div.className = `playlist-item p-3 rounded-xl border flex items-center justify-between cursor-pointer transition ${isPlaying ? 'playing border-blue-500 bg-blue-50' : 'bg-white border-gray-200 hover:bg-gray-50'}`;
+                div.onclick = () => playPerituneTrack(idx);
+
+                div.innerHTML = `
+                    <div class="flex items-center space-x-3 min-w-0">
+                        <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${isPlaying ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'} shrink-0">
+                            ${idx + 1}
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold text-gray-900 truncate">${t.name}</p>
+                            <p class="text-[10px] text-gray-500 truncate">${t.artist}</p>
+                        </div>
+                    </div>
+                    <div class="shrink-0 flex items-center space-x-1">
+                        ${isPlaying ? '<span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">再生中</span>' : '<span class="text-xs text-gray-400">▶</span>'}
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
 
         // ==========================================
         // 3. ユーティリティ
@@ -1004,6 +1304,7 @@
         // 4. 初期化・ストレージ復元
         // ==========================================
         window.addEventListener('DOMContentLoaded', async () => {
+            initAppMode();
             try {
                 // プライバシー保護: 写真データはストレージに一切保存・保持せず即座に完全消去
                 try {
@@ -1841,11 +2142,37 @@
         // ==========================================
         function checkReadyState() {
             const btn = document.getElementById('start-btn');
-            if (isStreamingReady || isPhotosReady) {
-                btn.disabled = false;
-                btn.innerText = "思い出を振り返る";
-                btn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
-                btn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-700', 'active:scale-95', 'shadow-md', 'cursor-pointer');
+            if (!btn) return;
+
+            const photoDates = Object.keys(photoDatabase).filter(d => !isDateHidden(d) && photoDatabase[d].length > 0);
+            const historyDates = Object.keys(rawStreamingData).filter(d => !isDateHidden(d) && rawStreamingData[d].length > 0);
+            const hasPhotos = photoDates.length > 0 || isPhotosReady;
+            const hasTracks = historyDates.length > 0 || isStreamingReady;
+
+            if (currentAppMode === 'none' || currentAppMode === 'free') {
+                if (hasPhotos) {
+                    btn.disabled = false;
+                    btn.innerText = (currentAppMode === 'free') ? "フリーBGMで思い出を振り返る" : "無音で思い出を振り返る";
+                    btn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
+                    btn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-700', 'active:scale-95', 'shadow-md', 'cursor-pointer');
+                } else {
+                    btn.disabled = true;
+                    btn.innerText = "写真を選択してください";
+                    btn.classList.add('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
+                    btn.classList.remove('bg-blue-600', 'text-white', 'hover:bg-blue-700', 'active:scale-95', 'shadow-md', 'cursor-pointer');
+                }
+            } else {
+                if (hasTracks || hasPhotos) {
+                    btn.disabled = false;
+                    btn.innerText = "思い出を振り返る";
+                    btn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
+                    btn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-700', 'active:scale-95', 'shadow-md', 'cursor-pointer');
+                } else {
+                    btn.disabled = true;
+                    btn.innerText = "準備中...";
+                    btn.classList.add('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
+                    btn.classList.remove('bg-blue-600', 'text-white', 'hover:bg-blue-700', 'active:scale-95', 'cursor-pointer');
+                }
             }
         }
 
@@ -1862,7 +2189,7 @@
             }
 
             if (activePeriodsList.length === 0) {
-                alert("表示できるデータがありません。");
+                alert("表示できるデータがありません。写真を選択してください。");
                 return;
             }
 
@@ -2344,20 +2671,8 @@
             document.getElementById('photo-count-badge').innerText = `📸 写真: ${photos.length}枚`;
             displayPhotosForPeriod(period);
 
-            // 楽曲の集計と再生
-            const tracks = getTracksForPeriod(period);
-            updatePeriodBannerAndTitles(period, tracks);
-
-            if (tracks.length === 0) {
-                document.getElementById('track-name').innerText = '曲が未登録です';
-                document.getElementById('artist-name').innerText = '下のボタンから思い出の曲を追加してください';
-                document.getElementById('track-source-label').innerText = '🎵 楽曲未選択';
-                document.getElementById('audio-player').src = '';
-                document.getElementById('playing-badge').classList.add('hidden');
-                renderPlaylistUI();
-            } else {
-                playTrack(0);
-            }
+            // 楽曲の集計と再生 (実験モードに応じて制御)
+            applyAppModeToPlayer(period);
         }
 
         // 後方互換性エイリアス
@@ -2739,12 +3054,27 @@
             refreshPeriodMusic(updatedTracks.length - 1);
         }
 
+        // 指定年月におけるBillboard Japan週間チャートが存在する週リスト（例: [1, 2, 3, 4, 5]）を取得
+        function getAvailableBillboardWeeksForMonth(year, month) {
+            const weeks = [];
+            for (let w = 1; w <= 5; w++) {
+                const chart = getBillboardWeeklyChart(year, month, w);
+                if (chart && chart.songs && chart.songs.length > 0) {
+                    weeks.push(w);
+                }
+            }
+            return weeks.length > 0 ? weeks : [1, 2, 3, 4];
+        }
+
         // 期間ごとのバナー文言およびプレイリスト見出しの動的更新
         function updatePeriodBannerAndTitles(period, tracks) {
             const hitsBanner = document.getElementById('hit-songs-suggest-banner');
             const hitsBannerTitle = document.getElementById('hit-songs-banner-title');
             const hitsBannerSubtitle = document.getElementById('hit-songs-banner-subtitle');
             const playlistTitle = document.getElementById('playlist-section-title');
+            const weekSelectContainer = document.getElementById('banner-week-select-container');
+            const weekSelect = document.getElementById('banner-week-select');
+            const addAllBtn = document.getElementById('add-all-hits-btn');
 
             if (playlistTitle) {
                 if (period && period.type === 'month') {
@@ -2765,19 +3095,39 @@
 
                 if (period && period.type === 'month') {
                     const [y, m] = period.startDate.split('-');
-                    if (hitsBannerTitle) hitsBannerTitle.innerText = `当時(${y}年${parseInt(m)}月)のBillboard JAPANヒット曲`;
-                    if (hitsBannerSubtitle) hitsBannerSubtitle.innerText = "この月の履歴がないため、当時のヒット曲から選べます";
+                    const year = parseInt(y, 10);
+                    const month = parseInt(m, 10);
+                    if (hitsBannerTitle) hitsBannerTitle.innerText = `当時(${year}年${month}月)のBillboard JAPANヒット曲`;
+                    if (hitsBannerSubtitle) hitsBannerSubtitle.innerText = "この月の履歴がないため、選択した週のTOP10を一括追加できます";
+
+                    if (weekSelectContainer && weekSelect) {
+                        weekSelectContainer.classList.remove('hidden');
+                        const weeks = getAvailableBillboardWeeksForMonth(year, month);
+                        const currentVal = parseInt(weekSelect.value, 10);
+                        weekSelect.innerHTML = weeks.map(w => `<option value="${w}">第${w}週</option>`).join('');
+                        if (weeks.includes(currentVal)) {
+                            weekSelect.value = currentVal;
+                        } else {
+                            weekSelect.value = weeks[0];
+                        }
+                    }
+                    if (addAllBtn) addAllBtn.innerText = "選択した週のTOP10を一括追加";
                 } else if (period && period.type === 'week') {
+                    if (weekSelectContainer) weekSelectContainer.classList.add('hidden');
                     if (hitsBannerTitle) hitsBannerTitle.innerText = `当時(${wInfo.year}年${wInfo.month}月 第${wInfo.week}週)のBillboard JAPAN週間TOP10`;
                     if (hitsBannerSubtitle) hitsBannerSubtitle.innerText = "この週の履歴がないため、当時のヒット曲から選べます";
+                    if (addAllBtn) addAllBtn.innerText = "TOP10を一括追加";
                 } else {
+                    if (weekSelectContainer) weekSelectContainer.classList.add('hidden');
                     const [y, m, d] = (primaryDate || '').split('-');
                     const dateLabel = y ? `${y}年${parseInt(m)}月${parseInt(d)}日` : `${wInfo.year}年${wInfo.month}月`;
                     if (hitsBannerTitle) hitsBannerTitle.innerText = `当時(${dateLabel})のBillboard JAPANヒット曲`;
                     if (hitsBannerSubtitle) hitsBannerSubtitle.innerText = "この日の履歴がないため、当時のヒット曲から選べます";
+                    if (addAllBtn) addAllBtn.innerText = "TOP10を一括追加";
                 }
             } else {
                 hitsBanner.classList.add('hidden');
+                if (weekSelectContainer) weekSelectContainer.classList.add('hidden');
             }
         }
 
@@ -2787,13 +3137,26 @@
             const primaryDate = period ? period.primaryDate : activeDatesList[currentIndex];
             if (!primaryDate) return;
 
+            let year, month, week;
+            if (period && period.type === 'month') {
+                const [y, m] = period.startDate.split('-');
+                year = parseInt(y, 10);
+                month = parseInt(m, 10);
+                const weekSelect = document.getElementById('banner-week-select');
+                week = weekSelect ? (parseInt(weekSelect.value, 10) || 1) : 1;
+            } else {
+                const wInfo = getBillboardWeekFromDate(primaryDate);
+                year = wInfo.year;
+                month = wInfo.month;
+                week = wInfo.week;
+            }
+
             // 公式Billboard JAPAN週間チャートTOP10を取得
-            const wInfo = getBillboardWeekFromDate(primaryDate);
-            const chartData = getBillboardWeeklyChart(wInfo.year, wInfo.month, wInfo.week);
+            const chartData = getBillboardWeeklyChart(year, month, week);
             const songs = (chartData && chartData.songs) ? chartData.songs : [];
 
             if (!songs || songs.length === 0) {
-                alert("該当する期間のBillboard JAPANヒット曲が見つかりませんでした。");
+                alert(`「${year}年${month}月 第${week}週」のBillboard JAPANヒット曲が見つかりませんでした。`);
                 return;
             }
 
@@ -2827,6 +3190,12 @@
 
             await localforage.setItem('saved_deleted_tracks', deletedTracksData);
             await localforage.setItem('saved_manual_tracks', manualTracksData);
+
+            if (addedCount > 0) {
+                showToast(`「${year}年${month}月 第${week}週」のTOP10から${addedCount}曲を追加しました`);
+            } else {
+                showToast(`選択した週の楽曲はすでに追加済みです`);
+            }
 
             refreshPeriodMusic(0);
         }
@@ -4184,6 +4553,9 @@
             if (e.key === 'ArrowLeft') document.getElementById('prev-btn').click();
             else if (e.key === 'ArrowRight') document.getElementById('next-btn').click();
         });
+
+        // アプリ起動時のモード初期化実行
+        initAppMode();
     </script>
 </body>
 </html>
