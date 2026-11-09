@@ -222,8 +222,14 @@
                             <span class="text-base font-bold leading-none select-none">›</span>
                         </button>
                         <div id="photo-date-sub-badge" class="absolute top-2.5 left-2.5 z-30 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs hidden pointer-events-none border border-white/20"></div>
-                        <div id="photo-progress-badge" class="absolute top-2.5 right-2.5 z-30 bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs hidden pointer-events-none">
-                            1 / 1
+                        <div class="absolute top-2.5 right-2.5 z-30 flex items-center space-x-1.5">
+                            <button id="photo-sort-mode-btn" class="bg-black/60 hover:bg-black/80 active:scale-90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs transition border border-white/20 flex items-center gap-1 cursor-pointer select-none hidden" title="写真の並び順を切り替え (タップで時系列・選択順・ランダムを変更)">
+                                <span id="photo-sort-mode-icon">🕒</span>
+                                <span id="photo-sort-mode-text">時系列</span>
+                            </button>
+                            <div id="photo-progress-badge" class="bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs hidden pointer-events-none">
+                                1 / 1
+                            </div>
                         </div>
 
                         <!-- 読み込み中スピナー -->
@@ -451,6 +457,8 @@
                             <button id="add-hidden-period-btn" class="w-full bg-blue-600 text-white font-bold py-1.5 rounded-lg text-xs hover:bg-blue-700 transition">
                                 + 非表示期間を追加
                             </button>
+                        </div>
+
                         <div class="mt-3">
                             <p class="font-bold text-gray-700 mb-1.5 flex items-center justify-between">
                                 <span>🚫 設定中の非表示期間</span>
@@ -624,58 +632,6 @@
                 weekLabel: targetWed.label,
                 songs: []
             };
-        }
-
-        /**
-         * 指定された年・月の月間Billboard JAPAN総合TOP10曲を取得
-         * （月内の各水曜日の週間チャート順位をポイント化: 1位10点〜10位1点して合算集計）
-         */
-        function getBillboardMonthlySongs(year, month) {
-            const y = parseInt(year, 10);
-            const m = parseInt(month, 10);
-            if (!window.BILLBOARD_WEEKLY_DATA) return [];
-
-            const songScores = {};
-            let foundWeeks = 0;
-
-            for (const info of Object.values(window.BILLBOARD_WEEKLY_DATA)) {
-                if (info.year === y && info.month === m && Array.isArray(info.songs)) {
-                    foundWeeks++;
-                    info.songs.forEach((s, idx) => {
-                        const rank = s.rank || (idx + 1);
-                        const points = Math.max(1, 11 - rank);
-                        const key = `${s.artist}___${s.track}`;
-                        if (!songScores[key]) {
-                            songScores[key] = {
-                                track: s.track,
-                                artist: s.artist,
-                                score: 0,
-                                bestRank: rank
-                            };
-                        }
-                        songScores[key].score += points;
-                        if (rank < songScores[key].bestRank) {
-                            songScores[key].bestRank = rank;
-                        }
-                    });
-                }
-            }
-
-            if (foundWeeks === 0) {
-                const wInfo = getBillboardWeeklyChart(y, m, 1);
-                return (wInfo && wInfo.songs) ? wInfo.songs.slice(0, 10) : [];
-            }
-
-            const sortedSongs = Object.values(songScores).sort((a, b) => {
-                if (b.score !== a.score) return b.score - a.score;
-                return a.bestRank - b.bestRank;
-            });
-
-            return sortedSongs.slice(0, 10).map((s, idx) => ({
-                rank: idx + 1,
-                track: s.track,
-                artist: s.artist
-            }));
         }
 
         /**
@@ -1080,13 +1036,17 @@
                 });
 
                 if (Array.isArray(savedFiles) && savedFiles.length > 0) {
-                    loadedStreamingFiles = savedFiles;
+                    loadedStreamingFiles = savedFiles.map(f => {
+                        const sInfo = getStreamingServiceInfo(f);
+                        f.type = sInfo.type;
+                        return f;
+                    });
                 } else if (Object.keys(rawStreamingData).length > 0) {
                     // 旧バージョン保存データの互換移行
                     loadedStreamingFiles = [{
                         id: 'legacy_saved_file',
                         name: '保存済み履歴データ',
-                        type: 'streaming',
+                        type: 'apple',
                         dayCount: Object.keys(rawStreamingData).length,
                         items: []
                     }];
@@ -1097,6 +1057,25 @@
                 console.error("復元エラー:", err);
             }
         });
+
+        // 音楽サブスクファイルの情報（アイコン、サービス名、種別）を包括判定
+        function getStreamingServiceInfo(fileInfo) {
+            if (!fileInfo) return { type: 'other', icon: '🎵', label: '音楽サブスク' };
+            const type = (fileInfo.type || '').toLowerCase();
+            const name = (fileInfo.name || '').toLowerCase();
+
+            // Apple Music 判定 (.csv, "apple", "play history", type: 'apple'/'csv')
+            if (type === 'apple' || type === 'csv' || name.endsWith('.csv') || name.includes('apple') || name.includes('play history')) {
+                return { type: 'apple', icon: '🍎', label: 'Apple Music' };
+            }
+
+            // Spotify 判定 (.json, "spotify", "streaminghistory", "endsong", type: 'spotify'/'json')
+            if (type === 'spotify' || type === 'json' || name.endsWith('.json') || name.includes('spotify') || name.includes('streaminghistory') || name.includes('endsong')) {
+                return { type: 'spotify', icon: '🟢', label: 'Spotify' };
+            }
+
+            return { type: 'other', icon: '🎵', label: '音楽サブスク' };
+        }
 
         function renderStreamingFilesList() {
             const listEl = document.getElementById('streaming-files-list');
@@ -1126,8 +1105,9 @@
                 const row = document.createElement('div');
                 row.className = "flex items-center justify-between bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs shadow-2xs";
 
-                const icon = fileInfo.type === 'spotify' ? '🟢' : (fileInfo.type === 'apple' ? '🍎' : '🎵');
-                const label = fileInfo.type === 'spotify' ? 'Spotify' : (fileInfo.type === 'apple' ? 'Apple Music' : '音楽サブスク');
+                const sInfo = getStreamingServiceInfo(fileInfo);
+                const icon = sInfo.icon;
+                const label = sInfo.label;
 
                 row.innerHTML = `
                     <div class="flex items-center space-x-1.5 truncate mr-2">
@@ -1573,6 +1553,7 @@
             let addedCount = 0;
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
+                file._selectIndex = i; // 選択順インデックスを保持
                 const fileKey = `${file.name}_${file.size}_${file.lastModified}`;
                 if (existingKeys.has(fileKey)) {
                     continue; // 既にストック済みの同一写真はスキップ
@@ -1682,13 +1663,19 @@
                         const rawDate = exif.DateTimeOriginal || exif.CreateDate || exif.DateTimeDigitized || exif.ModifyDate || exif.GPSDateStamp;
                         if (rawDate) {
                             if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+                                file._photoTimestamp = rawDate.getTime();
                                 const y = rawDate.getFullYear();
                                 const m = String(rawDate.getMonth() + 1).padStart(2, '0');
                                 const d = String(rawDate.getDate()).padStart(2, '0');
                                 return `${y}-${m}-${d}`;
                             } else if (typeof rawDate === 'string') {
-                                const match = rawDate.match(/^(\d{4})[:\/\-](\d{2})[:\/\-](\d{2})/);
+                                const match = rawDate.match(/^(\d{4})[:\/\-](\d{2})[:\/\-](\d{2})(?:\s+(\d{2})[:\/\-](\d{2})[:\/\-](\d{2}))?/);
                                 if (match) {
+                                    if (match[4] && match[5] && match[6]) {
+                                        file._photoTimestamp = new Date(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}`).getTime();
+                                    } else {
+                                        file._photoTimestamp = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00`).getTime();
+                                    }
                                     return `${match[1]}-${match[2]}-${match[3]}`;
                                 }
                             }
@@ -1704,6 +1691,7 @@
             try {
                 const binaryDate = await scanUniversalExif(file);
                 if (binaryDate) {
+                    file._photoTimestamp = new Date(`${binaryDate}T00:00:00`).getTime();
                     return binaryDate;
                 }
             } catch (e) {
@@ -1720,12 +1708,14 @@
                 const mInt = parseInt(m, 10);
                 const dInt = parseInt(d, 10);
                 if (mInt >= 1 && mInt <= 12 && dInt >= 1 && dInt <= 31) {
+                    file._photoTimestamp = new Date(`${y}-${m}-${d}T00:00:00`).getTime();
                     return `${y}-${m}-${d}`;
                 }
             }
 
             // 優先度 4: 最終フォールバック (file.lastModified)
             const d = file.lastModified ? new Date(file.lastModified) : new Date();
+            file._photoTimestamp = d.getTime();
             const y = d.getFullYear();
             const m = String(d.getMonth() + 1).padStart(2, '0');
             const day = String(d.getDate()).padStart(2, '0');
@@ -2799,21 +2789,16 @@
             }
         }
 
-        // 当時のBillboard JAPAN TOP10をワンクリックで一括追加
+        // 当時のBillboard JAPAN TOP10をワンクリックで一括追加（公式週間チャートTOP10）
         async function addAllHitsToCurrentPeriod() {
             const period = getCurrentPeriod();
             const primaryDate = period ? period.primaryDate : activeDatesList[currentIndex];
             if (!primaryDate) return;
 
-            let songs = [];
-            if (period && period.type === 'month') {
-                const [y, m] = period.startDate.split('-').map(Number);
-                songs = getBillboardMonthlySongs(y, m);
-            } else {
-                const wInfo = getBillboardWeekFromDate(primaryDate);
-                const chartData = getBillboardWeeklyChart(wInfo.year, wInfo.month, wInfo.week);
-                songs = (chartData && chartData.songs) ? chartData.songs : [];
-            }
+            // 公式Billboard JAPAN週間チャートTOP10を取得
+            const wInfo = getBillboardWeekFromDate(primaryDate);
+            const chartData = getBillboardWeeklyChart(wInfo.year, wInfo.month, wInfo.week);
+            const songs = (chartData && chartData.songs) ? chartData.songs : [];
 
             if (!songs || songs.length === 0) {
                 alert("該当する期間のBillboard JAPANヒット曲が見つかりませんでした。");
@@ -3630,7 +3615,85 @@
         let fadeTransitionTimer = null;
         let photoLoadRequestId = 0;              // 非同期レースコンディション防止用リクエストカウンタ
         let currentDisplayedPhotoDate = null;    // 現在表示中の日付（不要な強制再初期化を防止）
+        let photoSortMode = 'time';              // 'time' (時系列・古い順 / デフォルト), 'select' (選択順), 'random' (ランダム)
         const photoBlobUrlCache = new WeakMap(); // File -> Blob URL キャッシュ（メモリ枯渇防止 & 即時復元）
+
+        // 写真並び順ボタンのUI表示更新
+        function updatePhotoSortModeUI(photosCount = 0) {
+            const btn = document.getElementById('photo-sort-mode-btn');
+            const iconEl = document.getElementById('photo-sort-mode-icon');
+            const textEl = document.getElementById('photo-sort-mode-text');
+            if (!btn || !iconEl || !textEl) return;
+
+            if (photosCount > 1) {
+                btn.classList.remove('hidden');
+            } else {
+                btn.classList.add('hidden');
+            }
+
+            if (photoSortMode === 'select') {
+                iconEl.innerText = '📋';
+                textEl.innerText = '選択順';
+                btn.title = '写真の並び順: 選択順（タップでランダムに変更）';
+            } else if (photoSortMode === 'random') {
+                iconEl.innerText = '🎲';
+                textEl.innerText = 'ランダム';
+                btn.title = '写真の並び順: ランダム（タップで時系列順に変更）';
+            } else {
+                iconEl.innerText = '🕒';
+                textEl.innerText = '時系列';
+                btn.title = '写真の並び順: 時系列順（古い順）（タップで選択順に変更）';
+            }
+        }
+
+        // 写真並び順のトグル切り替え（時系列 -> 選択順 -> ランダム -> 時系列）
+        function togglePhotoSortMode() {
+            if (photoSortMode === 'time') {
+                photoSortMode = 'select';
+                showToast("写真の並び順: 📋 選択順 に変更しました");
+            } else if (photoSortMode === 'select') {
+                photoSortMode = 'random';
+                showToast("写真の並び順: 🎲 ランダム に変更しました");
+            } else {
+                photoSortMode = 'time';
+                showToast("写真の並び順: 🕒 時系列順（古い順） に変更しました");
+            }
+
+            const currentPeriod = getCurrentPeriod();
+            const rawPhotos = currentPeriod ? getPhotosForPeriod(currentPeriod) : [];
+            updatePhotoSortModeUI(rawPhotos.length);
+
+            // 現在の写真表示を新しいソート順で即座に再描画
+            if (currentPeriod) {
+                displayPhotosForPeriod(currentPeriod, true);
+            }
+        }
+
+        // 写真リストを指定されたモードでソート（デフォルト: 時系列昇順）
+        function sortPhotosByMode(photos, mode = photoSortMode) {
+            if (!photos || photos.length <= 1) return photos ? [...photos] : [];
+            const list = [...photos];
+
+            if (mode === 'select') {
+                // 選択順（ユーザーが選択した順序通り）
+                list.sort((a, b) => (a._selectIndex ?? 0) - (b._selectIndex ?? 0));
+            } else if (mode === 'random') {
+                // ランダム（シャッフル）
+                for (let i = list.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [list[i], list[j]] = [list[j], list[i]];
+                }
+            } else {
+                // 'time' (時系列昇順: 古い順 / 過去から現在へ) - デフォルト
+                list.sort((a, b) => {
+                    const tA = (typeof a._photoTimestamp === 'number') ? a._photoTimestamp : (a.lastModified || 0);
+                    const tB = (typeof b._photoTimestamp === 'number') ? b._photoTimestamp : (b.lastModified || 0);
+                    if (tA !== tB) return tA - tB;
+                    return (a._selectIndex ?? 0) - (b._selectIndex ?? 0);
+                });
+            }
+            return list;
+        }
 
         function updatePhotoNavUI(photos, currentIdx) {
             const prevBtn = document.getElementById('photo-prev-btn');
@@ -3721,8 +3784,11 @@
             const emptyText = document.getElementById('photo-empty-text');
 
             const periodId = period ? period.id : null;
-            const photos = period ? getPhotosForPeriod(period) : [];
+            const rawPhotos = period ? getPhotosForPeriod(period) : [];
+            const photos = sortPhotosByMode(rawPhotos, photoSortMode);
             currentPeriodPhotos = photos; // グローバル保持
+
+            updatePhotoSortModeUI(photos.length);
 
             // 同一期間でかつ強制更新フラグがない場合は、既存のスライドショー表示を滑らかに維持
             if (!forceRefresh && currentDisplayedPeriodId === periodId && photos.length > 0) {
@@ -3765,6 +3831,7 @@
                 }
             } else {
                 updatePhotoNavUI([], 0);
+                updatePhotoSortModeUI(0);
                 currentPhotoSrc = null;
                 activePhotoLayer = 'a';
                 const subDateBadge = document.getElementById('photo-date-sub-badge');
@@ -4079,6 +4146,15 @@
             updatePhotoNavUI(photos, slidePhotoIndex);
             restartSlideshowTimer(photos);
         });
+
+        // 写真並び順切り替えボタン (時系列 -> 選択順 -> ランダム)
+        const photoSortModeBtn = document.getElementById('photo-sort-mode-btn');
+        if (photoSortModeBtn) {
+            photoSortModeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                togglePhotoSortMode();
+            });
+        }
 
         // ==========================================
         // 16. 前後ボタン & キーボードナビゲーション
