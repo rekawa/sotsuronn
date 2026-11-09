@@ -296,12 +296,9 @@
                                 <p class="text-sm font-bold text-amber-950 leading-snug break-words" id="hit-songs-banner-title">当時のBillboard JAPANヒット曲</p>
                                 <p class="text-xs text-amber-800 mt-1 leading-relaxed break-words" id="hit-songs-banner-subtitle">この期間の履歴がないため、当時のヒット曲から選べます</p>
                             </div>
-                            <div class="flex items-center gap-2 shrink-0">
-                                <button id="add-all-hits-btn" class="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-xs transition cursor-pointer">
+                            <div class="shrink-0">
+                                <button id="add-all-hits-btn" class="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-lg shadow-xs transition cursor-pointer text-center">
                                     TOP10を一括追加
-                                </button>
-                                <button id="open-hits-from-banner-btn" class="text-amber-900 hover:text-amber-950 hover:bg-amber-100/60 active:scale-95 text-xs font-semibold px-2 py-1.5 rounded-lg transition underline underline-offset-2 cursor-pointer">
-                                    1曲ずつ選ぶ
                                 </button>
                             </div>
                         </div>
@@ -3146,7 +3143,6 @@
         const addAllHitsBtn = document.getElementById('add-all-hits-btn');
         if (addAllHitsBtn) addAllHitsBtn.addEventListener('click', addAllHitsToCurrentPeriod);
         document.getElementById('open-hits-btn').addEventListener('click', openWeeklyHitsModal);
-        document.getElementById('open-hits-from-banner-btn').addEventListener('click', openWeeklyHitsModal);
         document.getElementById('close-hits-modal-btn').addEventListener('click', () => {
             stopModalPreview();
             hitsModal.classList.add('hidden');
