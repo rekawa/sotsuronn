@@ -29,25 +29,6 @@
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800 pb-10 select-none">
-    <!-- 実験アプリ比較・検証モード切り替えバー (常駐ヘッダー) -->
-    <header id="experiment-mode-bar" class="w-full bg-gray-900 border-b border-gray-800 text-white px-3 py-2 flex flex-col sm:flex-row items-center justify-between gap-2 z-50 sticky top-0 shadow-md">
-        <div class="flex items-center space-x-2 text-center sm:text-left">
-            <span class="text-xs font-bold text-gray-200">実験アプリ切替:</span>
-            <span id="current-mode-description" class="text-[11px] text-blue-300 font-medium">思い出音楽プレーヤー（当時聴いていた曲・流行曲）</span>
-        </div>
-        <div class="inline-flex rounded-lg bg-gray-800 p-0.5 border border-gray-700 text-xs shrink-0">
-            <button id="mode-btn-none" onclick="switchAppMode('none')" class="mode-switch-btn px-2.5 py-1 font-bold rounded-md transition active:scale-95 text-gray-400 hover:text-white cursor-pointer">
-                ① BGMなし
-            </button>
-            <button id="mode-btn-free" onclick="switchAppMode('free')" class="mode-switch-btn px-2.5 py-1 font-bold rounded-md transition active:scale-95 text-gray-400 hover:text-white cursor-pointer">
-                ② フリー音源 (Peritune)
-            </button>
-            <button id="mode-btn-memory" onclick="switchAppMode('memory')" class="mode-switch-btn px-2.5 py-1 font-bold rounded-md transition active:scale-95 bg-blue-600 text-white cursor-pointer shadow-xs">
-                ③ 思い出音楽プレーヤー
-            </button>
-        </div>
-    </header>
-
     <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg relative flex flex-col justify-between">
         <div>
             <!-- ヘッダー -->
@@ -279,9 +260,9 @@
                     <!-- 写真スライドインジケーター -->
                     <div id="slide-indicator" class="flex justify-center items-center space-x-1.5 mb-3 hidden"></div>
 
-                    <!-- BGMなしモード時の案内表示枠 -->
+                    <!-- モードA (BGMなし) 時の案内表示枠 -->
                     <div id="no-bgm-notice-card" class="hidden mb-3.5 p-4 bg-gray-50 border border-gray-200 rounded-2xl text-center shadow-xs">
-                        <p class="text-xs font-bold text-gray-700">BGMなしモード（無音でスライドショーを再生中）</p>
+                        <p class="text-xs font-bold text-gray-700">モードA（BGMなし・無音でスライドショーを再生中）</p>
                         <p class="text-[11px] text-gray-500 mt-1">BGMを流さずに写真のスライドショーのみをお楽しみいただけます</p>
                     </div>
 
@@ -557,6 +538,27 @@
 
     </div>
 
+    <!-- 比較・検証モード切り替えフッター（画面最下部） -->
+    <footer id="experiment-mode-bar" class="w-full bg-gray-900 border-t border-gray-800 text-white px-3 py-3 mt-8">
+        <div class="max-w-md mx-auto flex flex-col items-center gap-2 text-center">
+            <div class="flex items-center space-x-2 text-xs">
+                <span class="font-bold text-gray-300">実験アプリ切替:</span>
+                <span id="current-mode-description" class="text-blue-300 font-medium">モードC（思い出音楽プレーヤー）</span>
+            </div>
+            <div class="inline-flex flex-wrap justify-center rounded-lg bg-gray-800 p-1 border border-gray-700 text-xs gap-1">
+                <button id="mode-btn-none" onclick="switchAppMode('none')" class="mode-switch-btn px-2.5 py-1.5 font-bold rounded-md transition active:scale-95 text-gray-400 hover:text-white cursor-pointer">
+                    モードA (BGMなし)
+                </button>
+                <button id="mode-btn-free" onclick="switchAppMode('free')" class="mode-switch-btn px-2.5 py-1.5 font-bold rounded-md transition active:scale-95 text-gray-400 hover:text-white cursor-pointer">
+                    モードB (フリーBGM)
+                </button>
+                <button id="mode-btn-memory" onclick="switchAppMode('memory')" class="mode-switch-btn px-2.5 py-1.5 font-bold rounded-md transition active:scale-95 bg-blue-600 text-white cursor-pointer shadow-xs">
+                    モードC (思い出音楽プレーヤー)
+                </button>
+            </div>
+        </div>
+    </footer>
+
     <script>
         /**
          * 卒業研究: マルチモーダルなライフログ同期による自伝的記憶の想起促進システム
@@ -705,25 +707,25 @@
         // ==========================================
         // 2. アプリケーション状態変数 & 実験比較モード
         // ==========================================
-        // 実験比較用フリー音源 (PeriTune) 13曲リスト
+        // 実験比較用フリーBGM 13曲リスト (Sunlit_Cafeを先頭に配置)
         const PERITUNE_TRACKS = [
-            { id: 'peri-1', name: 'Rainwalk', file: 'PeriTune_Rainwalk.mp3', artist: 'PeriTune' },
-            { id: 'peri-2', name: 'Gentle_Brew', file: 'Peritune_Gentle_Brew.mp3', artist: 'PeriTune' },
-            { id: 'peri-3', name: 'Morning Snowfields', file: 'Peritune_Morning_Snowfields.mp3', artist: 'PeriTune' },
-            { id: 'peri-4', name: 'Oceanfront', file: 'PeriTune_Oceanfront.mp3', artist: 'PeriTune' },
-            { id: 'peri-5', name: 'Sunlit_Cafe', file: 'Peritune_Sunlit_Cafe.mp3', artist: 'PeriTune' },
-            { id: 'peri-6', name: 'Backstreet Swing', file: 'PeriTune_Backstreet_Swing.mp3', artist: 'PeriTune' },
-            { id: 'peri-7', name: 'Resort5', file: 'PerituneMaterial_Resort5.mp3', artist: 'PeriTune' },
-            { id: 'peri-8', name: 'Breeze', file: 'PerituneMaterial_Breeze.mp3', artist: 'PeriTune' },
-            { id: 'peri-9', name: 'Memories6', file: 'PerituneMaterial_Memories6.mp3', artist: 'PeriTune' },
-            { id: 'peri-10', name: 'Radiant Sunshine', file: 'PerituneMaterial_Radiant Sunshine.mp3', artist: 'PeriTune' },
-            { id: 'peri-11', name: 'Village_Fete', file: 'PeriTune_Village_Fete.mp3', artist: 'PeriTune' },
-            { id: 'peri-12', name: 'Guitar_Melancholy2', file: 'PerituneMaterial_Guitar_Melancholy2.mp3', artist: 'PeriTune' },
-            { id: 'peri-13', name: 'Daybreak', file: 'PerituneMaterial_Daybreak.mp3', artist: 'PeriTune' }
+            { id: 'peri-5', name: 'Sunlit_Cafe', file: 'Peritune_Sunlit_Cafe.mp3', artist: 'フリーBGM' },
+            { id: 'peri-1', name: 'Rainwalk', file: 'PeriTune_Rainwalk.mp3', artist: 'フリーBGM' },
+            { id: 'peri-2', name: 'Gentle_Brew', file: 'Peritune_Gentle_Brew.mp3', artist: 'フリーBGM' },
+            { id: 'peri-3', name: 'Morning Snowfields', file: 'Peritune_Morning_Snowfields.mp3', artist: 'フリーBGM' },
+            { id: 'peri-4', name: 'Oceanfront', file: 'PeriTune_Oceanfront.mp3', artist: 'フリーBGM' },
+            { id: 'peri-6', name: 'Backstreet Swing', file: 'PeriTune_Backstreet_Swing.mp3', artist: 'フリーBGM' },
+            { id: 'peri-7', name: 'Resort5', file: 'PerituneMaterial_Resort5.mp3', artist: 'フリーBGM' },
+            { id: 'peri-8', name: 'Breeze', file: 'PerituneMaterial_Breeze.mp3', artist: 'フリーBGM' },
+            { id: 'peri-9', name: 'Memories6', file: 'PerituneMaterial_Memories6.mp3', artist: 'フリーBGM' },
+            { id: 'peri-10', name: 'Radiant Sunshine', file: 'PerituneMaterial_Radiant Sunshine.mp3', artist: 'フリーBGM' },
+            { id: 'peri-11', name: 'Village_Fete', file: 'PeriTune_Village_Fete.mp3', artist: 'フリーBGM' },
+            { id: 'peri-12', name: 'Guitar_Melancholy2', file: 'PerituneMaterial_Guitar_Melancholy2.mp3', artist: 'フリーBGM' },
+            { id: 'peri-13', name: 'Daybreak', file: 'PerituneMaterial_Daybreak.mp3', artist: 'フリーBGM' }
         ];
 
-        let currentAppMode = 'memory'; // 'none' (BGMなし) | 'free' (フリー音源) | 'memory' (思い出音楽プレーヤー)
-        let activePerituneIndex = 0;   // フリー音源モードで現在再生中の曲インデックス
+        let currentAppMode = 'memory'; // 'none' (モードA: BGMなし) | 'free' (モードB: フリーBGM) | 'memory' (モードC: 思い出音楽プレーヤー)
+        let activePerituneIndex = 0;   // フリーBGMモードで現在再生中の曲インデックス
 
         let rawStreamingData = {};       // 日別再生曲TOP5配列 { 'YYYY-MM-DD': [ { track, artist, ms, rank, source } ] }
         let loadedStreamingFiles = [];   // 読み込み済みファイルリスト [ { id, name, type, dayCount, items } ]
@@ -747,7 +749,7 @@
         let activePlaybackRequestId = 0;
 
         // ==========================================
-        // 実験比較モード (①BGMなし / ②フリー音源 / ③思い出音楽) 管理
+        // 実験比較モード (モードA / モードB / モードC) 管理
         // ==========================================
         function initAppMode() {
             try {
@@ -791,9 +793,9 @@
             }
 
             const modeLabels = {
-                'memory': '③ 思い出音楽プレーヤー（当時聴いていた曲・流行曲）',
-                'free': '② フリー音源（PeriTune 13曲）',
-                'none': '① BGMなし（無音スライドショー）'
+                'none': 'モードA (BGMなし)',
+                'free': 'モードB (フリーBGM)',
+                'memory': 'モードC (思い出音楽プレーヤー)'
             };
             showToast(`${modeLabels[mode]} に切り替えました`);
         }
@@ -806,23 +808,23 @@
             const titleEl = document.getElementById('main-app-title');
             const subtitleEl = document.getElementById('main-app-subtitle');
 
-            const activeClass = "mode-switch-btn px-2.5 py-1 font-bold rounded-md transition active:scale-95 bg-blue-600 text-white cursor-pointer shadow-xs";
-            const inactiveClass = "mode-switch-btn px-2.5 py-1 font-bold rounded-md transition active:scale-95 text-gray-400 hover:text-white cursor-pointer";
+            const activeClass = "mode-switch-btn px-2.5 py-1.5 font-bold rounded-md transition active:scale-95 bg-blue-600 text-white cursor-pointer shadow-xs";
+            const inactiveClass = "mode-switch-btn px-2.5 py-1.5 font-bold rounded-md transition active:scale-95 text-gray-400 hover:text-white cursor-pointer";
 
             if (btnMemory) btnMemory.className = (currentAppMode === 'memory') ? activeClass : inactiveClass;
             if (btnFree) btnFree.className = (currentAppMode === 'free') ? activeClass : inactiveClass;
             if (btnNone) btnNone.className = (currentAppMode === 'none') ? activeClass : inactiveClass;
 
             if (currentAppMode === 'none') {
-                if (descEl) descEl.innerText = "① BGMなし（無音でスライドショー鑑賞）";
-                if (titleEl) titleEl.innerText = "スライドショー (BGMなし)";
-                if (subtitleEl) subtitleEl.innerText = "静かに写真と向き合い、あの日を振り返る";
+                if (descEl) descEl.innerText = "モードA（BGMなし・無音スライドショー）";
+                if (titleEl) titleEl.innerText = "思い出スライドショー";
+                if (subtitleEl) subtitleEl.innerText = "写真と静かに向き合い、あの日を振り返る";
             } else if (currentAppMode === 'free') {
-                if (descEl) descEl.innerText = "② フリー音源（PeriTune素材 13曲から選択）";
-                if (titleEl) titleEl.innerText = "スライドショー (フリーBGM)";
-                if (subtitleEl) subtitleEl.innerText = "PeriTuneの音楽とともに思い出を楽しむ";
+                if (descEl) descEl.innerText = "モードB（フリーBGM 13曲から選択）";
+                if (titleEl) titleEl.innerText = "思い出スライドショー";
+                if (subtitleEl) subtitleEl.innerText = "フリーBGMとともに写真を楽しむ";
             } else {
-                if (descEl) descEl.innerText = "③ 思い出音楽プレーヤー（当時聴いていた曲・流行曲）";
+                if (descEl) descEl.innerText = "モードC（思い出音楽プレーヤー・当時聴いていた曲や流行曲）";
                 if (titleEl) titleEl.innerText = "思い出音楽プレーヤー";
                 if (subtitleEl) subtitleEl.innerText = "写真と音楽で、あの日を振り返る";
             }
@@ -836,18 +838,18 @@
             const step1Title = document.getElementById('step1-title');
 
             if (currentAppMode === 'none') {
-                if (step1Title) step1Title.innerText = "BGMなしモード（音楽履歴の読み込み不要）";
+                if (step1Title) step1Title.innerText = "モードA（BGMなし）";
                 if (skipNotice) {
                     skipNotice.classList.remove('hidden');
-                    if (skipText) skipText.innerHTML = "<strong>【① BGMなしモード】</strong><br>BGMを流さずにスライドショーのみを再生するモードです。音楽サブスク履歴の読み込みは不要です。下のステップ2から写真を選択してください。";
+                    if (skipText) skipText.innerHTML = "<strong>【モードA: BGMなし】</strong><br>BGMを流さずに写真のスライドショーのみを再生するモードです。音楽サブスク履歴の読み込みは不要です。下のステップ2から写真を選択してください。";
                 }
                 if (inputArea) inputArea.classList.add('hidden');
                 if (statusArea) statusArea.classList.add('hidden');
             } else if (currentAppMode === 'free') {
-                if (step1Title) step1Title.innerText = "フリー音源モード（音楽履歴の読み込み不要）";
+                if (step1Title) step1Title.innerText = "モードB（フリーBGM）";
                 if (skipNotice) {
                     skipNotice.classList.remove('hidden');
-                    if (skipText) skipText.innerHTML = "<strong>【② フリー音源 (PeriTune) モード】</strong><br>用意された13曲のフリー音源からBGMを選択するモードです。音楽サブスク履歴の読み込みは不要です。下のステップ2から写真を選択してください。";
+                    if (skipText) skipText.innerHTML = "<strong>【モードB: フリーBGM】</strong><br>あらかじめ用意されたフリーBGM（全13曲）を使用するモードです。音楽サブスク履歴の読み込みは不要です。下のステップ2から写真を選択してください。";
                 }
                 if (inputArea) inputArea.classList.add('hidden');
                 if (statusArea) statusArea.classList.add('hidden');
@@ -937,8 +939,8 @@
             const audioSearching = document.getElementById('audio-searching');
 
             if (trackNameEl) trackNameEl.innerText = t.name;
-            if (artistNameEl) artistNameEl.innerText = 'PeriTune (フリー音楽素材)';
-            if (sourceLabelEl) sourceLabelEl.innerText = '🎵 フリー音源 (PeriTune)';
+            if (artistNameEl) artistNameEl.innerText = 'フリーBGM';
+            if (sourceLabelEl) sourceLabelEl.innerText = 'フリーBGM';
             if (audioStatus) audioStatus.classList.add('hidden');
             if (audioSearching) audioSearching.classList.add('hidden');
 
