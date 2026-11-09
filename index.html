@@ -191,14 +191,18 @@
                         </button>
                     </div>
 
-                    <!-- 写真ヘッダー & 写真追加ボタン -->
-                    <div class="flex items-center justify-between mb-1.5 px-1">
+                    <!-- 写真ヘッダー & 並び順切り替え & 写真追加ボタン -->
+                    <div class="flex items-center justify-between mb-2 px-1">
                         <span class="text-xs font-bold text-gray-700 flex items-center">
-                            📸 思い出写真
+                            思い出写真
                         </span>
-                        <div>
+                        <div class="flex items-center gap-2">
+                            <button id="photo-sort-mode-btn" class="bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 text-xs font-medium px-2.5 py-1 rounded-lg shadow-xs transition active:scale-95 flex items-center cursor-pointer hidden" title="写真の並び順を切り替えます">
+                                <span class="text-gray-500 mr-1">並び:</span>
+                                <span id="photo-sort-mode-text" class="text-blue-600 font-bold">時系列順</span>
+                            </button>
                             <input type="file" id="player-add-photos-input" multiple accept="image/*" class="hidden">
-                            <button id="player-add-photos-btn" title="何枚でも写真を追加できます" class="bg-pink-50 hover:bg-pink-100 text-pink-600 border border-pink-200 text-xs font-bold px-2.5 py-1 rounded-full transition active:scale-95 flex items-center shadow-xs">
+                            <button id="player-add-photos-btn" title="何枚でも写真を追加できます" class="bg-pink-50 hover:bg-pink-100 text-pink-600 border border-pink-200 text-xs font-bold px-2.5 py-1 rounded-lg transition active:scale-95 flex items-center shadow-xs">
                                 <span class="mr-1 text-sm font-black leading-none">＋</span> 写真を追加
                             </button>
                         </div>
@@ -222,14 +226,8 @@
                             <span class="text-base font-bold leading-none select-none">›</span>
                         </button>
                         <div id="photo-date-sub-badge" class="absolute top-2.5 left-2.5 z-30 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs hidden pointer-events-none border border-white/20"></div>
-                        <div class="absolute top-2.5 right-2.5 z-30 flex items-center space-x-1.5">
-                            <button id="photo-sort-mode-btn" class="bg-black/60 hover:bg-black/80 active:scale-90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs transition border border-white/20 flex items-center gap-1 cursor-pointer select-none hidden" title="写真の並び順を切り替え (タップで時系列・選択順・ランダムを変更)">
-                                <span id="photo-sort-mode-icon">🕒</span>
-                                <span id="photo-sort-mode-text">時系列</span>
-                            </button>
-                            <div id="photo-progress-badge" class="bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs hidden pointer-events-none">
-                                1 / 1
-                            </div>
+                        <div id="photo-progress-badge" class="absolute top-2.5 right-2.5 z-30 bg-black/60 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full backdrop-blur-xs hidden pointer-events-none border border-white/20">
+                            1 / 1
                         </div>
 
                         <!-- 読み込み中スピナー -->
@@ -292,21 +290,18 @@
                     </div>
 
                     <!-- 週間・月間ヒット曲提案バナー (ワンクリック一括追加対応) -->
-                    <div id="hit-songs-suggest-banner" class="mb-3.5 p-3 bg-amber-50 border border-amber-200 rounded-xl hidden">
-                        <div class="flex items-center justify-between gap-2">
-                            <div class="flex items-center space-x-2 min-w-0">
-                                <span class="text-lg shrink-0">✨</span>
-                                <div class="min-w-0">
-                                    <p class="text-xs font-bold text-amber-900 truncate" id="hit-songs-banner-title">当時のBillboard JAPANヒット曲</p>
-                                    <p class="text-[10px] text-amber-700 truncate" id="hit-songs-banner-subtitle">この期間の履歴がないため、当時のヒット曲から選べます</p>
-                                </div>
+                    <div id="hit-songs-suggest-banner" class="mb-3.5 p-3.5 bg-amber-50/90 border border-amber-200 rounded-xl hidden">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-amber-950 leading-snug break-words" id="hit-songs-banner-title">当時のBillboard JAPANヒット曲</p>
+                                <p class="text-xs text-amber-800 mt-1 leading-relaxed break-words" id="hit-songs-banner-subtitle">この期間の履歴がないため、当時のヒット曲から選べます</p>
                             </div>
-                            <div class="flex items-center space-x-1.5 shrink-0">
-                                <button id="add-all-hits-btn" class="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer">
-                                    <span>⚡</span> TOP10を一括追加
+                            <div class="flex items-center gap-2 shrink-0">
+                                <button id="add-all-hits-btn" class="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-xs transition cursor-pointer">
+                                    TOP10を一括追加
                                 </button>
-                                <button id="open-hits-from-banner-btn" class="text-amber-800 hover:text-amber-950 text-[11px] font-bold px-1 py-1 underline cursor-pointer">
-                                    選ぶ
+                                <button id="open-hits-from-banner-btn" class="text-amber-900 hover:text-amber-950 hover:bg-amber-100/60 active:scale-95 text-xs font-semibold px-2 py-1.5 rounded-lg transition underline underline-offset-2 cursor-pointer">
+                                    1曲ずつ選ぶ
                                 </button>
                             </div>
                         </div>
@@ -3621,9 +3616,8 @@
         // 写真並び順ボタンのUI表示更新
         function updatePhotoSortModeUI(photosCount = 0) {
             const btn = document.getElementById('photo-sort-mode-btn');
-            const iconEl = document.getElementById('photo-sort-mode-icon');
             const textEl = document.getElementById('photo-sort-mode-text');
-            if (!btn || !iconEl || !textEl) return;
+            if (!btn || !textEl) return;
 
             if (photosCount > 1) {
                 btn.classList.remove('hidden');
@@ -3632,16 +3626,13 @@
             }
 
             if (photoSortMode === 'select') {
-                iconEl.innerText = '📋';
                 textEl.innerText = '選択順';
                 btn.title = '写真の並び順: 選択順（タップでランダムに変更）';
             } else if (photoSortMode === 'random') {
-                iconEl.innerText = '🎲';
                 textEl.innerText = 'ランダム';
                 btn.title = '写真の並び順: ランダム（タップで時系列順に変更）';
             } else {
-                iconEl.innerText = '🕒';
-                textEl.innerText = '時系列';
+                textEl.innerText = '時系列順';
                 btn.title = '写真の並び順: 時系列順（古い順）（タップで選択順に変更）';
             }
         }
@@ -3650,13 +3641,13 @@
         function togglePhotoSortMode() {
             if (photoSortMode === 'time') {
                 photoSortMode = 'select';
-                showToast("写真の並び順: 📋 選択順 に変更しました");
+                showToast("写真の並び順: 選択順 に変更しました");
             } else if (photoSortMode === 'select') {
                 photoSortMode = 'random';
-                showToast("写真の並び順: 🎲 ランダム に変更しました");
+                showToast("写真の並び順: ランダム に変更しました");
             } else {
                 photoSortMode = 'time';
-                showToast("写真の並び順: 🕒 時系列順（古い順） に変更しました");
+                showToast("写真の並び順: 時系列順（古い順） に変更しました");
             }
 
             const currentPeriod = getCurrentPeriod();
