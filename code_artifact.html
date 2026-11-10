@@ -80,7 +80,7 @@
 
                         <div id="streaming-input-area">
                             <p class="text-xs text-gray-500 mb-2 leading-relaxed">
-                                <strong>Spotify</strong> の再生履歴ファイル (<code>.json</code>) または <strong>Apple Music</strong> の履歴ファイル (<code>Apple Music - Play History Daily Tracks.csv</code>) を選択してください。
+                                <strong>Spotify</strong> の再生履歴ファイル (<code>.json</code>) または <strong>Apple Music</strong> の再生履歴ファイル (<code>Apple Music - Play History Daily Tracks.csv</code>) を選択してください。
                             </p>
 
                             <input type="file" id="streaming-file" multiple accept=".json,.csv" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer">
@@ -302,18 +302,18 @@
 
                     <!-- 週間・月間ヒット曲提案バナー (ワンクリック一括追加対応) -->
                     <div id="hit-songs-suggest-banner" class="mb-3.5 p-3.5 bg-amber-50/90 border border-amber-200 rounded-xl hidden">
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                            <div class="min-w-0">
-                                <p class="text-sm font-bold text-amber-950 leading-snug break-words" id="hit-songs-banner-title">当時のBillboard JAPANヒット曲</p>
-                                <p class="text-xs text-amber-800 mt-1 leading-relaxed break-words" id="hit-songs-banner-subtitle">この期間の履歴がないため、当時のヒット曲から選べます</p>
+                        <div class="flex flex-col gap-2.5">
+                            <div>
+                                <p class="text-sm font-bold text-amber-950 leading-snug" id="hit-songs-banner-title">当時のBillboard JAPANヒット曲</p>
+                                <p class="text-xs text-amber-800 mt-1 leading-relaxed" id="hit-songs-banner-subtitle">この期間の履歴がないため、当時のヒット曲から選べます</p>
                             </div>
-                            <div class="shrink-0 flex items-center gap-2">
-                                <div id="banner-week-select-container" class="hidden flex items-center gap-1.5">
+                            <div class="flex items-center justify-between gap-2 pt-1 border-t border-amber-200/60">
+                                <div id="banner-week-select-container" class="hidden flex items-center gap-1.5 flex-1 min-w-0">
                                     <span class="text-xs font-bold text-amber-900 whitespace-nowrap">週:</span>
-                                    <select id="banner-week-select" class="bg-white border border-amber-300 text-amber-900 text-xs font-bold rounded-lg px-2.5 py-1.5 shadow-xs outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer">
+                                    <select id="banner-week-select" class="bg-white border border-amber-300 text-amber-900 text-xs font-bold rounded-lg px-2 py-1.5 shadow-xs outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer w-full max-w-[140px] truncate">
                                     </select>
                                 </div>
-                                <button id="add-all-hits-btn" class="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-lg shadow-xs transition cursor-pointer text-center">
+                                <button id="add-all-hits-btn" class="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-xs transition cursor-pointer text-center whitespace-nowrap ml-auto">
                                     TOP10を一括追加
                                 </button>
                             </div>
@@ -817,11 +817,11 @@
 
             if (currentAppMode === 'none') {
                 if (descEl) descEl.innerText = "モードA (BGMなし)";
-                if (titleEl) titleEl.innerText = "思い出スライドショー";
+                if (titleEl) titleEl.innerText = "モードA";
                 if (subtitleEl) subtitleEl.innerText = "写真と静かに向き合い、あの日を振り返る";
             } else if (currentAppMode === 'free') {
                 if (descEl) descEl.innerText = "モードB (フリーBGM)";
-                if (titleEl) titleEl.innerText = "思い出スライドショー";
+                if (titleEl) titleEl.innerText = "モードB";
                 if (subtitleEl) subtitleEl.innerText = "フリーBGMとともに写真を楽しむ";
             } else {
                 if (descEl) descEl.innerText = "モードC (思い出音楽プレーヤー)";
@@ -3056,16 +3056,18 @@
             refreshPeriodMusic(updatedTracks.length - 1);
         }
 
-        // 指定年月におけるBillboard Japan週間チャートが存在する週リスト（例: [1, 2, 3, 4, 5]）を取得
+        // 指定年月におけるBillboard Japan週間チャートが存在する週リスト（実在する公開週）を取得
         function getAvailableBillboardWeeksForMonth(year, month) {
-            const weeks = [];
-            for (let w = 1; w <= 5; w++) {
-                const chart = getBillboardWeeklyChart(year, month, w);
-                if (chart && chart.songs && chart.songs.length > 0) {
-                    weeks.push(w);
-                }
+            const wedList = getBillboardWednesdaysOfMonth(year, month);
+            if (wedList && wedList.length > 0) {
+                return wedList;
             }
-            return weeks.length > 0 ? weeks : [1, 2, 3, 4];
+            return [
+                { week: 1, label: '第1週' },
+                { week: 2, label: '第2週' },
+                { week: 3, label: '第3週' },
+                { week: 4, label: '第4週' }
+            ];
         }
 
         // 期間ごとのバナー文言およびプレイリスト見出しの動的更新
@@ -3100,17 +3102,18 @@
                     const year = parseInt(y, 10);
                     const month = parseInt(m, 10);
                     if (hitsBannerTitle) hitsBannerTitle.innerText = `当時(${year}年${month}月)のBillboard JAPANヒット曲`;
-                    if (hitsBannerSubtitle) hitsBannerSubtitle.innerText = "この月の履歴がないため、選択した週のTOP10を一括追加できます";
+                    if (hitsBannerSubtitle) hitsBannerSubtitle.innerText = "この月の履歴がないため、この月の選択した週のTOP10を一括追加できます";
 
                     if (weekSelectContainer && weekSelect) {
                         weekSelectContainer.classList.remove('hidden');
                         const weeks = getAvailableBillboardWeeksForMonth(year, month);
                         const currentVal = parseInt(weekSelect.value, 10);
-                        weekSelect.innerHTML = weeks.map(w => `<option value="${w}">第${w}週</option>`).join('');
-                        if (weeks.includes(currentVal)) {
-                            weekSelect.value = currentVal;
+                        weekSelect.innerHTML = weeks.map(w => `<option value="${w.week}">${w.label || '第' + w.week + '週'}</option>`).join('');
+                        const hasVal = weeks.some(w => w.week === currentVal);
+                        if (hasVal) {
+                            weekSelect.value = String(currentVal);
                         } else {
-                            weekSelect.value = weeks[0];
+                            weekSelect.value = String(weeks[0].week);
                         }
                     }
                     if (addAllBtn) addAllBtn.innerText = "選択した週のTOP10を一括追加";
