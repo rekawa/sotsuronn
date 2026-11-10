@@ -407,10 +407,10 @@
                     </div>
                     <div class="flex items-center justify-between text-[11px]">
                         <span id="hits-source-badge" class="text-amber-800 font-medium truncate flex-1 mr-2">
-                            📊 Billboard JAPAN Hot 100 / Streaming Songs
+                            Billboard JAPAN Hot 100
                         </span>
                         <button id="photo-week-jump-btn" class="text-blue-600 hover:text-blue-800 font-bold underline whitespace-nowrap">
-                            📍 写真の日付の週
+                            写真の日付の週
                         </button>
                     </div>
                 </div>
@@ -538,21 +538,21 @@
 
     </div>
 
-    <!-- 比較・検証モード切り替えフッター（画面最下部） -->
+    <!-- モード切り替えフッター（画面最下部） -->
     <footer id="experiment-mode-bar" class="w-full bg-gray-900 border-t border-gray-800 text-white px-3 py-3 mt-8">
-        <div class="max-w-md mx-auto flex flex-col items-center gap-2 text-center">
-            <div class="flex items-center space-x-2 text-xs">
-                <span class="font-bold text-gray-300">実験アプリ切替:</span>
-                <span id="current-mode-description" class="text-blue-300 font-medium">モードC（思い出音楽プレーヤー）</span>
+        <div class="max-w-md mx-auto flex flex-col items-center gap-2.5 text-center">
+            <div class="flex items-center justify-center space-x-2 text-xs whitespace-nowrap">
+                <span class="font-bold text-gray-400 flex-shrink-0">モード切替:</span>
+                <span id="current-mode-description" class="text-blue-400 font-semibold truncate">モードC (思い出音楽プレーヤー)</span>
             </div>
-            <div class="inline-flex flex-wrap justify-center rounded-lg bg-gray-800 p-1 border border-gray-700 text-xs gap-1">
-                <button id="mode-btn-none" onclick="switchAppMode('none')" class="mode-switch-btn px-2.5 py-1.5 font-bold rounded-md transition active:scale-95 text-gray-400 hover:text-white cursor-pointer">
+            <div class="flex flex-wrap sm:flex-nowrap justify-center gap-2 w-full text-xs">
+                <button id="mode-btn-none" onclick="switchAppMode('none')" class="mode-switch-btn flex-1 min-w-[110px] px-3 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-xs text-center">
                     モードA (BGMなし)
                 </button>
-                <button id="mode-btn-free" onclick="switchAppMode('free')" class="mode-switch-btn px-2.5 py-1.5 font-bold rounded-md transition active:scale-95 text-gray-400 hover:text-white cursor-pointer">
+                <button id="mode-btn-free" onclick="switchAppMode('free')" class="mode-switch-btn flex-1 min-w-[110px] px-3 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-xs text-center">
                     モードB (フリーBGM)
                 </button>
-                <button id="mode-btn-memory" onclick="switchAppMode('memory')" class="mode-switch-btn px-2.5 py-1.5 font-bold rounded-md transition active:scale-95 bg-blue-600 text-white cursor-pointer shadow-xs">
+                <button id="mode-btn-memory" onclick="switchAppMode('memory')" class="mode-switch-btn flex-1 min-w-[110px] px-3 py-2 font-bold rounded-lg transition active:scale-95 bg-blue-600 text-white border-2 border-blue-400 shadow-md ring-2 ring-blue-500/30 cursor-pointer text-xs text-center">
                     モードC (思い出音楽プレーヤー)
                 </button>
             </div>
@@ -808,23 +808,23 @@
             const titleEl = document.getElementById('main-app-title');
             const subtitleEl = document.getElementById('main-app-subtitle');
 
-            const activeClass = "mode-switch-btn px-2.5 py-1.5 font-bold rounded-md transition active:scale-95 bg-blue-600 text-white cursor-pointer shadow-xs";
-            const inactiveClass = "mode-switch-btn px-2.5 py-1.5 font-bold rounded-md transition active:scale-95 text-gray-400 hover:text-white cursor-pointer";
+            const activeClass = "mode-switch-btn flex-1 min-w-[110px] px-3 py-2 font-bold rounded-lg transition active:scale-95 bg-blue-600 text-white border-2 border-blue-400 shadow-md ring-2 ring-blue-500/30 cursor-pointer text-xs text-center";
+            const inactiveClass = "mode-switch-btn flex-1 min-w-[110px] px-3 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-xs text-center";
 
             if (btnMemory) btnMemory.className = (currentAppMode === 'memory') ? activeClass : inactiveClass;
             if (btnFree) btnFree.className = (currentAppMode === 'free') ? activeClass : inactiveClass;
             if (btnNone) btnNone.className = (currentAppMode === 'none') ? activeClass : inactiveClass;
 
             if (currentAppMode === 'none') {
-                if (descEl) descEl.innerText = "モードA（BGMなし・無音スライドショー）";
+                if (descEl) descEl.innerText = "モードA (BGMなし)";
                 if (titleEl) titleEl.innerText = "思い出スライドショー";
                 if (subtitleEl) subtitleEl.innerText = "写真と静かに向き合い、あの日を振り返る";
             } else if (currentAppMode === 'free') {
-                if (descEl) descEl.innerText = "モードB（フリーBGM 13曲から選択）";
+                if (descEl) descEl.innerText = "モードB (フリーBGM)";
                 if (titleEl) titleEl.innerText = "思い出スライドショー";
                 if (subtitleEl) subtitleEl.innerText = "フリーBGMとともに写真を楽しむ";
             } else {
-                if (descEl) descEl.innerText = "モードC（思い出音楽プレーヤー・当時聴いていた曲や流行曲）";
+                if (descEl) descEl.innerText = "モードC (思い出音楽プレーヤー)";
                 if (titleEl) titleEl.innerText = "思い出音楽プレーヤー";
                 if (subtitleEl) subtitleEl.innerText = "写真と音楽で、あの日を振り返る";
             }
@@ -3536,8 +3536,7 @@
             document.getElementById('hits-modal-title').innerText = `Billboard JAPAN 週間TOP10`;
             const sourceBadge = document.getElementById('hits-source-badge');
             if (sourceBadge) {
-                const relDate = chartData.chartDateStr || "";
-                sourceBadge.innerText = `📊 ${year}年${month}月 ${chartData.weekLabel || '第' + week + '週'} [${relDate} 公開]`;
+                sourceBadge.innerText = `${year}年${month}月 ${chartData.weekLabel || '第' + week + '週'}`;
             }
 
             const listEl = document.getElementById('hits-song-list');
