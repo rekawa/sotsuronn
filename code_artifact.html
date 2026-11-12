@@ -506,10 +506,6 @@
                                 <span>🔄 実験の進行状況をリセット</span>
                                 <span class="text-[10px] text-gray-400">最初から</span>
                             </button>
-                            <button type="button" onclick="confirmResetStreamingHistory()" class="w-full bg-red-50 hover:bg-red-100 text-red-600 font-medium py-1.5 px-2.5 rounded-lg text-xs transition border border-red-200 text-left flex items-center justify-between cursor-pointer">
-                                <span>🗑️ 音楽サブスク履歴を初期化</span>
-                                <span class="text-[10px] text-red-400">全消去</span>
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -823,8 +819,8 @@
         // ==========================================
         // 2. アプリケーション状態変数 & 実験比較モード
         // ==========================================
-        // 実験比較用フリーBGM 13曲リスト (Sunlit_Cafeを先頭に配置)
-        const PERITUNE_TRACKS = [
+        // 実験比較用フリーBGM 13曲リスト (Sunlit_Cafeを先頭に配置、並び替え可能)
+        let PERITUNE_TRACKS = [
             { id: 'peri-5', name: 'Sunlit_Cafe', file: 'Peritune_Sunlit_Cafe.mp3', artist: 'フリーBGM' },
             { id: 'peri-1', name: 'Rainwalk', file: 'PeriTune_Rainwalk.mp3', artist: 'フリーBGM' },
             { id: 'peri-2', name: 'Gentle_Brew', file: 'Peritune_Gentle_Brew.mp3', artist: 'フリーBGM' },
@@ -847,6 +843,7 @@
         let loadedStreamingFiles = [];   // 読み込み済みファイルリスト [ { id, name, type, dayCount, items } ]
         let manualTracksData = {};       // 手動追加曲 { 'YYYY-MM-DD': [ { track, artist, previewUrl, source: 'manual' } ] }
         let deletedTracksData = {};      // 削除した曲 { 'YYYY-MM-DD': [ 'artist__SPLIT__track' ] }
+        let periodCustomTrackOrder = {}; // 各期間ごとのカスタム並び替え順 { [periodId]: ['artist__SPLIT__track', ...] }
         let hiddenSettings = { hiddenSongs: [], hiddenPeriods: [] };
         
         let photoDatabase = {};          // 写真ファイル配列 { 'YYYY-MM-DD': [File, ...] }
@@ -1248,7 +1245,7 @@
             const countEl = document.getElementById('playlist-count');
 
             if (titleEl) titleEl.innerText = 'フリーBGM一覧 (全13曲)';
-            if (subtitleEl) subtitleEl.innerText = 'タップした曲がすぐにスライドショーのBGMになります';
+            if (subtitleEl) subtitleEl.innerHTML = 'タップで即座に再生 <span class="text-[10px] text-blue-600 font-bold block sm:inline">※三本線ドラッグ または ▲▼ で曲順を自由に並び替えられます</span>';
             if (countEl) countEl.innerText = `${PERITUNE_TRACKS.length}曲`;
 
             if (!container) return;
@@ -1256,26 +1253,105 @@
 
             PERITUNE_TRACKS.forEach((t, idx) => {
                 const isPlaying = (idx === activePerituneIndex);
+                const isFirst = (idx === 0);
+                const isLast = (idx === PERITUNE_TRACKS.length - 1);
+
                 const div = document.createElement('div');
-                div.className = `playlist-item p-3 rounded-xl border flex items-center justify-between cursor-pointer transition ${isPlaying ? 'playing border-blue-500 bg-blue-50' : 'bg-white border-gray-200 hover:bg-gray-50'}`;
-                div.onclick = () => playPerituneTrack(idx);
+                div.className = `playlist-item p-2.5 rounded-xl border flex items-center justify-between transition ${isPlaying ? 'playing border-blue-500 bg-blue-50 shadow-xs' : 'bg-white border-gray-200 hover:bg-gray-50'}`;
+                div.setAttribute('draggable', 'true');
 
                 div.innerHTML = `
-                    <div class="flex items-center space-x-3 min-w-0">
-                        <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${isPlaying ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'} shrink-0">
+                    <div class="flex items-center space-x-2 min-w-0 flex-1 cursor-pointer track-click-area">
+                        <!-- ドラッグハンドル (三本線) -->
+                        <span class="text-gray-400 hover:text-gray-700 text-sm cursor-grab select-none px-1" title="ドラッグして並び替え">≡</span>
+                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${isPlaying ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'} shrink-0">
                             ${idx + 1}
                         </div>
-                        <div class="min-w-0">
-                            <p class="text-xs font-bold text-gray-900 truncate">${t.name}</p>
-                            <p class="text-[10px] text-gray-500 truncate">${t.artist}</p>
+                        <div class="min-w-0 truncate">
+                            <p class="text-xs font-bold text-gray-900 truncate">${escapeHtml(t.name)}</p>
+                            <p class="text-[10px] text-gray-500 truncate">${escapeHtml(t.artist)}</p>
                         </div>
                     </div>
-                    <div class="shrink-0 flex items-center space-x-1">
-                        ${isPlaying ? '<span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">再生中</span>' : '<span class="text-xs text-gray-400">▶</span>'}
+                    <div class="shrink-0 flex items-center space-x-1 ml-2">
+                        <!-- 上へ移動ボタン -->
+                        <button type="button" class="btn-move-up p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-blue-600 text-xs font-bold ${isFirst ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer active:scale-90'}" title="上へ移動" ${isFirst ? 'disabled' : ''}>
+                            ▲
+                        </button>
+                        <!-- 下へ移動ボタン -->
+                        <button type="button" class="btn-move-down p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-blue-600 text-xs font-bold ${isLast ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer active:scale-90'}" title="下へ移動" ${isLast ? 'disabled' : ''}>
+                            ▼
+                        </button>
+                        ${isPlaying ? '<span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold ml-1">再生中</span>' : '<button type="button" class="btn-play text-xs text-blue-600 hover:bg-blue-100 p-1 rounded cursor-pointer ml-1">▶</button>'}
                     </div>
                 `;
+
+                div.querySelector('.track-click-area').onclick = () => playPerituneTrack(idx);
+                const playBtn = div.querySelector('.btn-play');
+                if (playBtn) playBtn.onclick = () => playPerituneTrack(idx);
+
+                const upBtn = div.querySelector('.btn-move-up');
+                if (upBtn && !isFirst) {
+                    upBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        movePerituneTrack(idx, idx - 1);
+                    };
+                }
+
+                const downBtn = div.querySelector('.btn-move-down');
+                if (downBtn && !isLast) {
+                    downBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        movePerituneTrack(idx, idx + 1);
+                    };
+                }
+
+                // ドラッグ＆ドロップイベント
+                div.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', String(idx));
+                    div.classList.add('opacity-50');
+                });
+                div.addEventListener('dragend', () => {
+                    div.classList.remove('opacity-50');
+                });
+                div.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    div.classList.add('bg-blue-100/60');
+                });
+                div.addEventListener('dragleave', () => {
+                    div.classList.remove('bg-blue-100/60');
+                });
+                div.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    div.classList.remove('bg-blue-100/60');
+                    const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                    if (!isNaN(fromIdx) && fromIdx !== idx) {
+                        movePerituneTrack(fromIdx, idx);
+                    }
+                });
+
                 container.appendChild(div);
             });
+        }
+
+        async function movePerituneTrack(fromIndex, toIndex) {
+            if (fromIndex < 0 || fromIndex >= PERITUNE_TRACKS.length) return;
+            if (toIndex < 0 || toIndex >= PERITUNE_TRACKS.length) return;
+            if (fromIndex === toIndex) return;
+
+            const currentPlayingTrack = PERITUNE_TRACKS[activePerituneIndex];
+            const [moved] = PERITUNE_TRACKS.splice(fromIndex, 1);
+            PERITUNE_TRACKS.splice(toIndex, 0, moved);
+
+            if (currentPlayingTrack) {
+                activePerituneIndex = PERITUNE_TRACKS.findIndex(t => t.id === currentPlayingTrack.id);
+            }
+
+            try {
+                await localforage.setItem('saved_peritune_order', PERITUNE_TRACKS.map(t => t.id));
+            } catch (e) {}
+
+            renderPeritunePlaylistUI();
+            showToast(`「${moved.name}」を${toIndex + 1}番目に移動しました`);
         }
 
         // ==========================================
@@ -1603,11 +1679,26 @@
                 const savedManual = await localforage.getItem('saved_manual_tracks');
                 const savedDeleted = await localforage.getItem('saved_deleted_tracks');
                 const savedHidden = await localforage.getItem('saved_hidden_settings');
+                const savedCustomOrder = await localforage.getItem('saved_custom_track_order');
+                const savedPerituneOrder = await localforage.getItem('saved_peritune_order');
 
                 if (savedStreaming) rawStreamingData = savedStreaming;
                 if (savedManual) manualTracksData = savedManual;
                 if (savedDeleted) deletedTracksData = savedDeleted;
                 if (savedHidden) hiddenSettings = savedHidden;
+                if (savedCustomOrder) periodCustomTrackOrder = savedCustomOrder;
+                if (Array.isArray(savedPerituneOrder) && savedPerituneOrder.length > 0) {
+                    const sorted = [];
+                    savedPerituneOrder.forEach(id => {
+                        const t = PERITUNE_TRACKS.find(x => x.id === id);
+                        if (t) sorted.push(t);
+                    });
+                    PERITUNE_TRACKS.forEach(t => {
+                        if (!sorted.some(x => x.id === t.id)) sorted.push(t);
+                    });
+                    PERITUNE_TRACKS = sorted;
+                    renderPeritunePlaylistUI();
+                }
 
                 Object.keys(rawStreamingData).forEach(d => {
                     if (!Array.isArray(rawStreamingData[d])) {
@@ -2923,7 +3014,21 @@
         function getCurrentTracks() {
             const period = getCurrentPeriod();
             if (!period) return [];
-            return getTracksForPeriod(period);
+            const tracks = getTracksForPeriod(period);
+            if (periodCustomTrackOrder && periodCustomTrackOrder[period.id]) {
+                const order = periodCustomTrackOrder[period.id];
+                tracks.sort((a, b) => {
+                    const keyA = `${a.artist}__SPLIT__${a.track}`;
+                    const keyB = `${b.artist}__SPLIT__${b.track}`;
+                    const idxA = order.indexOf(keyA);
+                    const idxB = order.indexOf(keyB);
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                    if (idxA !== -1) return -1;
+                    if (idxB !== -1) return 1;
+                    return 0;
+                });
+            }
+            return tracks;
         }
 
         function getCurrentPhotos() {
@@ -3247,23 +3352,41 @@
             tracks.forEach((trackObj, i) => {
                 const isPlaying = (i === activeTrackIndex);
                 const rankText = trackObj.source === 'streaming' && trackObj.rank ? (rankBadges[trackObj.rank - 1] || `${trackObj.rank}位`) : '追加曲';
+                const isFirst = (i === 0);
+                const isLast = (i === tracks.length - 1);
                 
                 const itemDiv = document.createElement('div');
-                itemDiv.className = `playlist-item border rounded-xl p-2.5 flex items-center justify-between cursor-pointer ${isPlaying ? 'playing shadow-xs' : 'bg-white hover:bg-gray-50'}`;
+                itemDiv.className = `playlist-item border rounded-xl p-2.5 flex items-center justify-between transition-colors select-none ${isPlaying ? 'playing shadow-xs' : 'bg-white hover:bg-gray-50'}`;
+                itemDiv.setAttribute('draggable', 'true');
+                itemDiv.dataset.index = i;
 
                 itemDiv.innerHTML = `
-                    <div class="flex items-center overflow-hidden flex-1 mr-2 track-click-area">
-                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded mr-2 flex-shrink-0 ${trackObj.source === 'streaming' ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'}">
-                            ${rankText}
+                    <div class="flex items-center overflow-hidden flex-1 mr-2">
+                        <!-- ドラッグハンドル -->
+                        <span class="drag-handle text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing px-1 mr-1 text-sm font-bold select-none shrink-0" title="ドラッグして並び替え">
+                            ≡
                         </span>
-                        <div class="truncate">
-                            <p class="text-xs font-bold text-gray-800 truncate">${escapeHtml(trackObj.track)}</p>
-                            <p class="text-[10px] text-gray-500 truncate">${escapeHtml(trackObj.artist)}</p>
+                        <div class="flex items-center overflow-hidden flex-1 cursor-pointer track-click-area">
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded mr-2 flex-shrink-0 ${trackObj.source === 'streaming' ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'}">
+                                ${rankText}
+                            </span>
+                            <div class="truncate">
+                                <p class="text-xs font-bold text-gray-800 truncate">${escapeHtml(trackObj.track)}</p>
+                                <p class="text-[10px] text-gray-500 truncate">${escapeHtml(trackObj.artist)}</p>
+                            </div>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-1.5">
-                        ${isPlaying ? '<span class="text-blue-500 text-[10px] font-bold animate-pulse">再生中</span>' : '<button class="play-btn text-xs text-blue-600 hover:underline px-1">▶</button>'}
-                        <button title="削除" class="delete-song-btn text-gray-400 hover:text-red-500 p-1 rounded-md text-xs hover:bg-red-50 transition">
+                    <div class="flex items-center space-x-1 shrink-0 ml-2">
+                        <!-- 上へ移動ボタン -->
+                        <button type="button" class="btn-move-up p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-blue-600 text-xs font-bold ${isFirst ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer active:scale-90'}" title="上へ移動" ${isFirst ? 'disabled' : ''}>
+                            ▲
+                        </button>
+                        <!-- 下へ移動ボタン -->
+                        <button type="button" class="btn-move-down p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-blue-600 text-xs font-bold ${isLast ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer active:scale-90'}" title="下へ移動" ${isLast ? 'disabled' : ''}>
+                            ▼
+                        </button>
+                        ${isPlaying ? '<span class="text-blue-500 text-[10px] font-bold animate-pulse ml-1">再生中</span>' : '<button type="button" class="play-btn text-xs text-blue-600 hover:underline px-1 ml-1 cursor-pointer">▶</button>'}
+                        <button type="button" title="削除" class="delete-song-btn text-gray-400 hover:text-red-500 p-1 rounded-md text-xs hover:bg-red-50 transition cursor-pointer">
                             🗑️
                         </button>
                     </div>
@@ -3272,11 +3395,51 @@
                 itemDiv.querySelector('.track-click-area').addEventListener('click', () => playTrack(i));
                 const playBtn = itemDiv.querySelector('.play-btn');
                 if (playBtn) playBtn.addEventListener('click', () => playTrack(i));
+
+                const upBtn = itemDiv.querySelector('.btn-move-up');
+                if (upBtn && !isFirst) {
+                    upBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        moveCurrentPeriodTrack(i, i - 1);
+                    });
+                }
+
+                const downBtn = itemDiv.querySelector('.btn-move-down');
+                if (downBtn && !isLast) {
+                    downBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        moveCurrentPeriodTrack(i, i + 1);
+                    });
+                }
                 
                 itemDiv.querySelector('.delete-song-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (confirm(`「${trackObj.track}」を削除しますか？`)) {
                         deleteTrackFromCurrentPeriod(trackObj);
+                    }
+                });
+
+                // ドラッグ＆ドロップイベント
+                itemDiv.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', String(i));
+                    itemDiv.classList.add('opacity-50');
+                });
+                itemDiv.addEventListener('dragend', () => {
+                    itemDiv.classList.remove('opacity-50');
+                });
+                itemDiv.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    itemDiv.classList.add('bg-blue-100/60');
+                });
+                itemDiv.addEventListener('dragleave', () => {
+                    itemDiv.classList.remove('bg-blue-100/60');
+                });
+                itemDiv.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    itemDiv.classList.remove('bg-blue-100/60');
+                    const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                    if (!isNaN(fromIdx) && fromIdx !== i) {
+                        moveCurrentPeriodTrack(fromIdx, i);
                     }
                 });
 
@@ -3294,6 +3457,41 @@
             }
         }
 
+        async function moveCurrentPeriodTrack(fromIndex, toIndex) {
+            const period = getCurrentPeriod();
+            if (!period) return;
+            const tracks = getCurrentTracks();
+            if (fromIndex < 0 || fromIndex >= tracks.length) return;
+            if (toIndex < 0 || toIndex >= tracks.length) return;
+            if (fromIndex === toIndex) return;
+
+            const currentPlayingKey = (activeTrackIndex >= 0 && activeTrackIndex < tracks.length)
+                ? `${tracks[activeTrackIndex].artist}__SPLIT__${tracks[activeTrackIndex].track}`
+                : null;
+
+            const [moved] = tracks.splice(fromIndex, 1);
+            tracks.splice(toIndex, 0, moved);
+
+            if (!periodCustomTrackOrder) periodCustomTrackOrder = {};
+            periodCustomTrackOrder[period.id] = tracks.map(t => `${t.artist}__SPLIT__${t.track}`);
+
+            if (currentPlayingKey) {
+                const newIdx = tracks.findIndex(t => `${t.artist}__SPLIT__${t.track}` === currentPlayingKey);
+                if (newIdx !== -1) {
+                    activeTrackIndex = newIdx;
+                }
+            }
+
+            try {
+                await localforage.setItem('saved_custom_track_order', periodCustomTrackOrder);
+            } catch (e) {
+                console.error("並び順保存エラー:", e);
+            }
+
+            renderPlaylistUI();
+            showToast(`「${moved.track}」を${toIndex + 1}番目に移動しました`);
+        }
+
         async function deleteTrackFromCurrentPeriod(trackObj) {
             const period = getCurrentPeriod();
             const songKey = `${trackObj.artist}__SPLIT__${trackObj.track}`;
@@ -3308,6 +3506,13 @@
                     manualTracksData[dateStr] = manualTracksData[dateStr].filter(t => !(t.track === trackObj.track && t.artist === trackObj.artist));
                 }
             });
+
+            if (period && periodCustomTrackOrder && periodCustomTrackOrder[period.id]) {
+                periodCustomTrackOrder[period.id] = periodCustomTrackOrder[period.id].filter(k => k !== songKey);
+                try {
+                    await localforage.setItem('saved_custom_track_order', periodCustomTrackOrder);
+                } catch (e) {}
+            }
 
             await localforage.setItem('saved_deleted_tracks', deletedTracksData);
             await localforage.setItem('saved_manual_tracks', manualTracksData);
