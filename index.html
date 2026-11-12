@@ -337,7 +337,7 @@
                         <div class="flex justify-between items-end mb-2 px-1">
                             <div>
                                 <h3 id="playlist-section-title" class="text-xs font-bold text-gray-700">この日のプレイリスト (TOP10)</h3>
-                                <p id="playlist-section-subtitle" class="text-[10px] text-gray-400">タップした曲がすぐに再生されます</p>
+                                <p id="playlist-section-subtitle" class="text-[10px] text-gray-500">タップで即座に再生 <span class="text-[10px] text-blue-600 font-bold block sm:inline">※曲をドラッグして自由に曲順を並び替えられます</span></p>
                             </div>
                             <span id="playlist-count" class="text-xs text-gray-500 font-medium">0/10曲</span>
                         </div>
@@ -1060,7 +1060,20 @@
             if (setupSection && !setupSection.classList.contains('hidden')) {
                 renderCurrentAppModeHome();
             } else if (playerSection && !playerSection.classList.contains('hidden')) {
+                // スライドショーの切り替え競合を防止: 進行中の非同期トランジションをリセットして安全な表示を維持
+                photoLoadRequestId++;
+                if (fadeTransitionTimer) {
+                    clearTimeout(fadeTransitionTimer);
+                    fadeTransitionTimer = null;
+                }
+                isPhotoTransitioning = false;
+                restorePhotoDisplayState();
+
                 applyAppModeToPlayer();
+
+                if (currentPeriodPhotos && currentPeriodPhotos.length > 1) {
+                    restartSlideshowTimer(currentPeriodPhotos);
+                }
             }
 
             showToast(`${slideshowLabels[mode]} に切り替えました`);
@@ -1245,7 +1258,7 @@
             const countEl = document.getElementById('playlist-count');
 
             if (titleEl) titleEl.innerText = 'フリーBGM一覧 (全13曲)';
-            if (subtitleEl) subtitleEl.innerHTML = 'タップで即座に再生 <span class="text-[10px] text-blue-600 font-bold block sm:inline">※三本線ドラッグ または ▲▼ で曲順を自由に並び替えられます</span>';
+            if (subtitleEl) subtitleEl.innerHTML = 'タップで即座に再生 <span class="text-[10px] text-blue-600 font-bold block sm:inline">※曲をドラッグして自由に曲順を並び替えられます</span>';
             if (countEl) countEl.innerText = `${PERITUNE_TRACKS.length}曲`;
 
             if (!container) return;
@@ -3356,6 +3369,9 @@
             const container = document.getElementById('playlist-container');
             container.innerHTML = '';
 
+            const subtitleEl = document.getElementById('playlist-section-subtitle');
+            if (subtitleEl) subtitleEl.innerHTML = 'タップで即座に再生 <span class="text-[10px] text-blue-600 font-bold block sm:inline">※曲をドラッグして自由に曲順を並び替えられます</span>';
+
             document.getElementById('playlist-count').innerText = `${tracks.length}/10曲`;
 
             if (tracks.length === 0) {
@@ -4609,6 +4625,8 @@
             }
         }
 
+        let isPhotoTransitioning = false;
+
         function restartSlideshowTimer(photos) {
             if (slideShowInterval) {
                 clearInterval(slideShowInterval);
@@ -4616,8 +4634,8 @@
             }
             if (photos && photos.length > 1) {
                 slideShowInterval = setInterval(() => {
-                    // タブがバックグラウンドの場合はタイマー処理をスキップ
-                    if (document.hidden) return;
+                    // タブがバックグラウンドの場合や、前のトランジション実行中はスキップして安全待機
+                    if (document.hidden || isPhotoTransitioning) return;
                     slidePhotoIndex = (slidePhotoIndex + 1) % photos.length;
                     showSlidePhoto(photos, slidePhotoIndex, true);
                     renderSlideDots(photos.length, slidePhotoIndex);
@@ -4800,7 +4818,7 @@
             const preload = new Image();
             preload.onload = async function() {
                 if (reqId !== photoLoadRequestId) return;
-                await applyPhotoToLayers(nextUrl, isSlideSwitch);
+                await applyPhotoToLayers(nextUrl, isSlideSwitch, reqId);
             };
             preload.onerror = function() {
                 if (reqId !== photoLoadRequestId) return;
@@ -4810,7 +4828,7 @@
             preload.src = nextUrl;
         }
 
-        async function applyPhotoToLayers(newSrc, isSlideSwitch) {
+        async function applyPhotoToLayers(newSrc, isSlideSwitch, reqId = photoLoadRequestId) {
             const mainA = document.getElementById('photo-main-a');
             const mainB = document.getElementById('photo-main-b');
             const blurA = document.getElementById('photo-blur-a');
@@ -4829,6 +4847,7 @@
             if (!isSlideSwitch || !currentPhotoSrc) {
                 // 初回表示 または 期間変更時: 即時表示
                 activePhotoLayer = 'a';
+                isPhotoTransitioning = false;
 
                 mainA.style.transition = 'none';
                 blurA.style.transition = 'none';
@@ -4851,8 +4870,12 @@
                 blurB.src = '';
 
                 currentPhotoSrc = newSrc;
+                photoLoadConsecutiveFailures = 0;
                 return;
             }
+
+            // トランジション開始
+            isPhotoTransitioning = true;
 
             // 真のダブルバッファ交互切り替え (レイヤーAとBを対等に扱うピンポン方式)
             // 現在のレイヤーから待機中のレイヤーへフェード
@@ -4883,7 +4906,13 @@
                     await nextMain.decode();
                 }
             } catch (e) {
-                // デコード非対応またはエラー時はそのまま進行
+                // デコード非対応またはバックグラウンド化時のabort
+            }
+
+            // デコード待機中に別の要求が発生またはバックグラウンド化された場合は即時破棄
+            if (reqId !== photoLoadRequestId || document.hidden) {
+                isPhotoTransitioning = false;
+                return;
             }
 
             // 強制リフローを実行してスタイル変更を同期フラッシュ
@@ -4902,6 +4931,7 @@
 
             // フェードイン完了後、奥に回った古いレイヤーのopacityを0にして待機
             fadeTransitionTimer = setTimeout(() => {
+                if (reqId !== photoLoadRequestId) return;
                 currentMain.style.transition = 'none';
                 currentBlur.style.transition = 'none';
                 currentMain.style.opacity = '0';
@@ -4909,6 +4939,13 @@
                 currentMain.src = '';
                 currentBlur.src = '';
                 fadeTransitionTimer = null;
+                isPhotoTransitioning = false;
+
+                // 自己修復ガード: 万一新しい手前レイヤーの opacity が 0 になっていたら即座に 1 に復旧（ブラックアウト根絶）
+                if (nextMain && nextMain.style.opacity !== '1') {
+                    nextMain.style.opacity = '1';
+                    if (nextBlur) nextBlur.style.opacity = '1';
+                }
             }, 650);
         }
 
@@ -4962,25 +4999,34 @@
                 clearTimeout(fadeTransitionTimer);
                 fadeTransitionTimer = null;
             }
+            isPhotoTransitioning = false;
 
             if (currentPhotoSrc) {
+                // レイヤーAを表示用、レイヤーBを待機用として完全に同期固定
+                activePhotoLayer = 'a';
                 if (mainA) {
                     mainA.style.transition = 'none';
-                    mainA.src = currentPhotoSrc;
+                    if (mainA.src !== currentPhotoSrc) mainA.src = currentPhotoSrc;
                     mainA.style.opacity = '1';
+                    mainA.style.zIndex = '20';
                 }
                 if (blurA) {
                     blurA.style.transition = 'none';
-                    blurA.src = currentPhotoSrc;
+                    if (blurA.src !== currentPhotoSrc) blurA.src = currentPhotoSrc;
                     blurA.style.opacity = '1';
+                    blurA.style.zIndex = '5';
                 }
                 if (mainB) {
                     mainB.style.transition = 'none';
                     mainB.style.opacity = '0';
+                    mainB.style.zIndex = '10';
+                    mainB.src = '';
                 }
                 if (blurB) {
                     blurB.style.transition = 'none';
                     blurB.style.opacity = '0';
+                    blurB.style.zIndex = '0';
+                    blurB.src = '';
                 }
             }
         }
@@ -4990,6 +5036,8 @@
             const photos = currentPeriodPhotos;
 
             if (document.hidden) {
+                // バックグラウンド移行時: 非同期要求を破棄＆タイマー安全停止
+                photoLoadRequestId++;
                 if (slideShowInterval) {
                     clearInterval(slideShowInterval);
                     slideShowInterval = null;
@@ -4998,10 +5046,20 @@
                     clearTimeout(fadeTransitionTimer);
                     fadeTransitionTimer = null;
                 }
+                isPhotoTransitioning = false;
             } else {
+                // フォアグラウンド復帰時:
+                // 1. 保留中の非同期処理を破棄
+                photoLoadRequestId++;
+                // 2. 表示レイヤー状態を完全同期・修復
                 restorePhotoDisplayState();
+                // 3. ブラウザの描画コンテキストが安定する安全マージン（150ms）後にタイマー再起動
                 if (photos && photos.length > 1) {
-                    restartSlideshowTimer(photos);
+                    setTimeout(() => {
+                        if (!document.hidden && currentPeriodPhotos === photos) {
+                            restartSlideshowTimer(photos);
+                        }
+                    }, 150);
                 }
             }
         });
