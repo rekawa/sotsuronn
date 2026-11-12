@@ -70,7 +70,7 @@
                     <div id="step1-streaming-card" class="mb-4 p-4 border rounded-xl bg-gray-50 shadow-sm relative">
                         <h2 class="text-sm font-bold mb-1.5 text-gray-700 flex items-center">
                             <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-xs flex items-center justify-center mr-2 font-black">1</span>
-                            <span id="step1-title">音楽サブスクの再生履歴を読み込む（※モードCで使用）</span>
+                            <span id="step1-title">音楽サブスクの再生履歴を読み込む（※スライドショーCで使用）</span>
                         </h2>
                         
                         <!-- モード別補足案内表示 -->
@@ -268,9 +268,9 @@
                     <!-- 写真スライドインジケーター -->
                     <div id="slide-indicator" class="flex justify-center items-center space-x-1.5 mb-3 hidden"></div>
 
-                    <!-- モードA (BGMなし) 時の案内表示枠 -->
+                    <!-- スライドショーA (BGMなし) 時の案内表示枠 -->
                     <div id="no-bgm-notice-card" class="hidden mb-3.5 p-4 bg-gray-50 border border-gray-200 rounded-2xl text-center shadow-xs">
-                        <p class="text-xs font-bold text-gray-700">モードA（BGMなし・無音でスライドショーを再生中）</p>
+                        <p class="text-xs font-bold text-gray-700">スライドショーA（BGMなし・無音でスライドショーを再生中）</p>
                         <p class="text-[11px] text-gray-500 mt-1">BGMを流さずに写真のスライドショーのみをお楽しみいただけます</p>
                     </div>
 
@@ -483,6 +483,27 @@
                             <div id="hidden-periods-list" class="space-y-1.5 max-h-40 overflow-y-auto pr-0.5"></div>
                         </div>
                     </div>
+
+                    <!-- 利用モードの切り替え (実験用モード / 自由鑑賞モード) -->
+                    <div class="pt-3 border-t border-gray-200">
+                        <p class="font-bold text-gray-800 mb-1 flex items-center justify-between">
+                            <span>利用モードの切り替え</span>
+                            <span id="settings-current-mode-badge" class="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">実験用モード</span>
+                        </p>
+                        <p class="text-[11px] text-gray-500 mb-2 leading-relaxed">
+                            被験者用の「実験用モード（戻り制限・アンケート確認あり）」と、通常用の「自由鑑賞モード（制限なし）」をいつでも切り替えられます。
+                        </p>
+                        <div class="space-y-1.5">
+                            <button type="button" id="settings-toggle-usage-btn" onclick="toggleUsageMode()" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-2 px-2.5 rounded-lg text-xs transition border border-blue-200 text-left flex items-center justify-between cursor-pointer">
+                                <span id="settings-toggle-usage-text">自由鑑賞モードに切り替える</span>
+                                <span class="text-[10px] text-blue-500">切替 ›</span>
+                            </button>
+                            <button type="button" id="settings-reset-exp-btn" onclick="resetExperimentProgress()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-1.5 px-2.5 rounded-lg text-xs transition border border-gray-300 text-left flex items-center justify-between cursor-pointer">
+                                <span>🔄 実験の進行状況をリセット</span>
+                                <span class="text-[10px] text-gray-400">最初から</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -544,24 +565,126 @@
             </div>
         </div>
 
+        <!-- ========================================== -->
+        <!-- 初回モード選択モーダル (実験用モード vs 自由鑑賞モード) -->
+        <!-- ========================================== -->
+        <div id="usage-mode-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-gray-800">
+                <div class="text-center mb-5">
+                    <span class="inline-block p-3 bg-blue-100 text-blue-600 rounded-full mb-2 text-2xl font-bold">✨</span>
+                    <h3 class="text-lg font-bold text-gray-900">利用モードの選択</h3>
+                    <p class="text-xs text-gray-500 mt-1">ご利用の目的に合わせてモードを選択してください</p>
+                </div>
+                
+                <div class="space-y-3 mb-5">
+                    <!-- 実験用モード -->
+                    <button type="button" onclick="selectUsageMode('experiment')" class="w-full text-left p-4 rounded-xl border-2 border-blue-500 bg-blue-50/50 hover:bg-blue-50 transition active:scale-[0.99] flex flex-col cursor-pointer group shadow-xs">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="font-bold text-sm text-blue-900 flex items-center">
+                                🧪 実験用モード
+                                <span class="ml-2 text-[10px] bg-blue-600 text-white font-bold px-2 py-0.5 rounded-full">被験者の方</span>
+                            </span>
+                            <span class="text-blue-600 text-xs font-bold group-hover:translate-x-0.5 transition-transform">選択 ›</span>
+                        </div>
+                        <p class="text-xs text-gray-600 leading-relaxed">
+                            研究実験に参加される被験者の方はこちら。案内された順序で各スライドショーを鑑賞し、切り替えごとにアンケートに回答します（※順序効果防止のため、前のスライドショーには戻れません）。
+                        </p>
+                    </button>
+
+                    <!-- 自由鑑賞モード -->
+                    <button type="button" onclick="selectUsageMode('free')" class="w-full text-left p-4 rounded-xl border border-gray-300 hover:border-gray-400 bg-white hover:bg-gray-50 transition active:scale-[0.99] flex flex-col cursor-pointer group shadow-xs">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="font-bold text-sm text-gray-800 flex items-center">
+                                🎵 自由鑑賞モード
+                                <span class="ml-2 text-[10px] bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded-full">一般・作者用</span>
+                            </span>
+                            <span class="text-gray-500 text-xs font-bold group-hover:translate-x-0.5 transition-transform">選択 ›</span>
+                        </div>
+                        <p class="text-xs text-gray-600 leading-relaxed">
+                            制限なくすべてのスライドショー（A / B / C）を自由に行き来して鑑賞できます。通常の思い出振り返りや実験後の復習用です。
+                        </p>
+                    </button>
+                </div>
+
+                <p class="text-[11px] text-gray-400 text-center">
+                    ※画面右上の ⚙（設定）からいつでもモードを切り替えられます
+                </p>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- 実験用モード: アンケート回答確認モーダル -->
+        <!-- ========================================== -->
+        <div id="switch-confirm-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-gray-800">
+                <div class="text-center mb-4">
+                    <span class="inline-block p-3 bg-amber-100 text-amber-600 rounded-full mb-2 text-2xl font-bold">📋</span>
+                    <h3 class="text-base font-bold text-gray-900">アンケート回答はお済みですか？</h3>
+                    <p id="switch-confirm-message" class="text-xs text-gray-600 mt-2 leading-relaxed">
+                        次のスライドショーへ切り替える前に、現在のスライドショーのアンケート回答を完了してください。
+                    </p>
+                </div>
+
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl mb-5 text-[11px] text-amber-900 leading-relaxed">
+                    <strong>⚠️ ご注意（一方通行）</strong><br>
+                    実験の公平性（順序効果の防止）のため、一度切り替えると<strong>直前のスライドショーには戻れなくなります</strong>。必ず現在のスライドショーのアンケートに回答してから次へお進みください。
+                </div>
+
+                <div class="space-y-2">
+                    <button type="button" onclick="confirmModeSwitch()" class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow transition active:scale-95 cursor-pointer">
+                        アンケートに回答したので次に進む
+                    </button>
+                    <button type="button" onclick="closeSwitchConfirmModal()" class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition cursor-pointer">
+                        まだ回答していない（戻る）
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- 実験用モード: 全スライドショー鑑賞完了モーダル -->
+        <!-- ========================================== -->
+        <div id="experiment-finished-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-gray-800 text-center">
+                <span class="inline-block p-4 bg-green-100 text-green-600 rounded-full mb-3 text-3xl font-bold">🎉</span>
+                <h3 class="text-base font-bold text-gray-900 mb-2">全スライドショーの鑑賞完了！</h3>
+                <p class="text-xs text-gray-600 mb-4 leading-relaxed">
+                    すべてのスライドショーの鑑賞およびアンケートへのご協力、誠にありがとうございました！<br><br>
+                    これで実験手順はすべて完了です。今後は<strong>「自由鑑賞モード」</strong>に切り替えて、すべてのスライドショー（A / B / C）を自由にお楽しみいただけます。
+                </p>
+
+                <div class="space-y-2">
+                    <button type="button" onclick="switchToFreeUsageFromFinished()" class="w-full py-2.5 px-4 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-xl shadow transition active:scale-95 cursor-pointer">
+                        自由鑑賞モードに切り替えて楽しむ
+                    </button>
+                    <button type="button" onclick="closeExperimentFinishedModal()" class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition cursor-pointer">
+                        閉じる
+                    </button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
-    <!-- モード切り替えフッター（画面最下部） -->
+    <!-- スライドショー切り替えフッター（画面最下部） -->
     <footer id="experiment-mode-bar" class="w-full bg-gray-900 border-t border-gray-800 text-white px-3 py-3 mt-8">
-        <div class="max-w-md mx-auto flex flex-col items-center gap-2.5 text-center">
-            <div class="flex items-center justify-center space-x-2 text-xs whitespace-nowrap">
-                <span class="font-bold text-gray-400 flex-shrink-0">モード切替:</span>
-                <span id="current-mode-description" class="text-blue-400 font-semibold truncate">モードC (思い出音楽プレーヤー)</span>
+        <div class="max-w-md mx-auto flex flex-col items-center gap-2 text-center">
+            <div class="flex items-center justify-between w-full px-1 text-xs">
+                <div class="flex items-center space-x-1.5 truncate">
+                    <span class="font-bold text-gray-400 flex-shrink-0">鑑賞中:</span>
+                    <span id="current-mode-description" class="text-blue-400 font-semibold truncate">スライドショーC (思い出音楽プレーヤー)</span>
+                </div>
+                <span id="footer-usage-mode-badge" class="flex-shrink-0 text-[10px] bg-blue-900/70 border border-blue-500/50 text-blue-300 font-bold px-2 py-0.5 rounded-full">🧪 実験用モード</span>
             </div>
             <div class="flex flex-wrap sm:flex-nowrap justify-center gap-2 w-full text-xs">
-                <button id="mode-btn-none" onclick="switchAppMode('none')" class="mode-switch-btn flex-1 min-w-[110px] px-3 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-xs text-center">
-                    モードA (BGMなし)
+                <button id="mode-btn-none" onclick="switchAppMode('none')" class="mode-switch-btn flex-1 min-w-[110px] px-2.5 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-xs text-center">
+                    スライドショーA (BGMなし)
                 </button>
-                <button id="mode-btn-free" onclick="switchAppMode('free')" class="mode-switch-btn flex-1 min-w-[110px] px-3 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-xs text-center">
-                    モードB (フリーBGM)
+                <button id="mode-btn-free" onclick="switchAppMode('free')" class="mode-switch-btn flex-1 min-w-[110px] px-2.5 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-xs text-center">
+                    スライドショーB (フリーBGM)
                 </button>
-                <button id="mode-btn-memory" onclick="switchAppMode('memory')" class="mode-switch-btn flex-1 min-w-[110px] px-3 py-2 font-bold rounded-lg transition active:scale-95 bg-blue-600 text-white border-2 border-blue-400 shadow-md ring-2 ring-blue-500/30 cursor-pointer text-xs text-center">
-                    モードC (思い出音楽プレーヤー)
+                <button id="mode-btn-memory" onclick="switchAppMode('memory')" class="mode-switch-btn flex-1 min-w-[110px] px-2.5 py-2 font-bold rounded-lg transition active:scale-95 bg-blue-600 text-white border-2 border-blue-400 shadow-md ring-2 ring-blue-500/30 cursor-pointer text-xs text-center">
+                    スライドショーC (思い出音楽プレーヤー)
                 </button>
             </div>
         </div>
@@ -732,7 +855,7 @@
             { id: 'peri-13', name: 'Daybreak', file: 'PerituneMaterial_Daybreak.mp3', artist: 'フリーBGM' }
         ];
 
-        let currentAppMode = 'memory'; // 'none' (モードA: BGMなし) | 'free' (モードB: フリーBGM) | 'memory' (モードC: 思い出音楽プレーヤー)
+        let currentAppMode = 'memory'; // 'none' (スライドショーA: BGMなし) | 'free' (スライドショーB: フリーBGM) | 'memory' (スライドショーC: 思い出音楽プレーヤー)
         let activePerituneIndex = 0;   // フリーBGMモードで現在再生中の曲インデックス
 
         let rawStreamingData = {};       // 日別再生曲TOP5配列 { 'YYYY-MM-DD': [ { track, artist, ms, rank, source } ] }
@@ -757,10 +880,38 @@
         let activePlaybackRequestId = 0;
 
         // ==========================================
-        // 実験比較モード (モードA / モードB / モードC) 管理
+        // 実験比較 & 利用モード管理 (スライドショーA / B / C, 実験用 / 自由鑑賞)
         // ==========================================
+        let appUsageMode = null;            // 'experiment' (実験用モード) | 'free' (自由鑑賞モード)
+        let visitedSlideshows = [];         // 鑑賞済みスライドショー配列 ['none', 'free', 'memory']
+        let pendingModeSwitchTarget = null; // 確認モーダルで保留中の切替先
+
+        const slideshowLabels = {
+            'none': 'スライドショーA (BGMなし)',
+            'free': 'スライドショーB (フリーBGM)',
+            'memory': 'スライドショーC (思い出音楽プレーヤー)'
+        };
+
         function initAppMode() {
             try {
+                const savedUsage = localStorage.getItem('study_usage_mode');
+                if (savedUsage === 'experiment' || savedUsage === 'free') {
+                    appUsageMode = savedUsage;
+                } else {
+                    appUsageMode = null; // 初回モーダル表示
+                }
+
+                const savedVisited = localStorage.getItem('study_visited_slideshows');
+                if (savedVisited) {
+                    try {
+                        visitedSlideshows = JSON.parse(savedVisited) || [];
+                    } catch(e) {
+                        visitedSlideshows = [];
+                    }
+                } else {
+                    visitedSlideshows = [];
+                }
+
                 const urlParams = new URLSearchParams(window.location.search);
                 const qMode = urlParams.get('mode');
                 if (['none', 'free', 'memory'].includes(qMode)) {
@@ -772,12 +923,164 @@
                     }
                 }
             } catch(e) {}
+
+            updateUsageModeUI();
             updateModeSwitchBarUI();
             renderCurrentAppModeHome();
+
+            // 初回アクセス時（利用モード未設定）は選択モーダルを表示
+            if (!appUsageMode) {
+                openUsageModeModal();
+            }
         }
 
-        function switchAppMode(mode) {
-            if (!['memory', 'free', 'none'].includes(mode)) mode = 'memory';
+        function openUsageModeModal() {
+            const modal = document.getElementById('usage-mode-modal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeUsageModeModal() {
+            const modal = document.getElementById('usage-mode-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function selectUsageMode(mode) {
+            appUsageMode = (mode === 'free') ? 'free' : 'experiment';
+            try {
+                localStorage.setItem('study_usage_mode', appUsageMode);
+            } catch(e) {}
+
+            closeUsageModeModal();
+            updateUsageModeUI();
+            updateModeSwitchBarUI();
+
+            showToast(appUsageMode === 'experiment' ? '🧪 実験用モードを開始しました' : '🎵 自由鑑賞モードを開始しました');
+        }
+
+        function toggleUsageMode() {
+            const nextMode = (appUsageMode === 'free') ? 'experiment' : 'free';
+            selectUsageMode(nextMode);
+        }
+
+        function resetExperimentProgress() {
+            visitedSlideshows = [];
+            try {
+                localStorage.removeItem('study_visited_slideshows');
+            } catch(e) {}
+            updateModeSwitchBarUI();
+            showToast('🔄 実験の進行状況をリセットしました（最初から鑑賞できます）');
+        }
+
+        function updateUsageModeUI() {
+            const isFree = (appUsageMode === 'free');
+            const settingsBadge = document.getElementById('settings-current-mode-badge');
+            const settingsBtnText = document.getElementById('settings-toggle-usage-text');
+            const footerBadge = document.getElementById('footer-usage-mode-badge');
+
+            if (isFree) {
+                if (settingsBadge) {
+                    settingsBadge.className = 'text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full';
+                    settingsBadge.innerText = '自由鑑賞モード';
+                }
+                if (settingsBtnText) {
+                    settingsBtnText.innerText = '実験用モードに切り替える';
+                }
+                if (footerBadge) {
+                    footerBadge.className = 'flex-shrink-0 text-[10px] bg-purple-900/70 border border-purple-500/50 text-purple-300 font-bold px-2 py-0.5 rounded-full';
+                    footerBadge.innerText = '🎵 自由鑑賞モード';
+                }
+            } else {
+                if (settingsBadge) {
+                    settingsBadge.className = 'text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full';
+                    settingsBadge.innerText = '実験用モード';
+                }
+                if (settingsBtnText) {
+                    settingsBtnText.innerText = '自由鑑賞モードに切り替える';
+                }
+                if (footerBadge) {
+                    footerBadge.className = 'flex-shrink-0 text-[10px] bg-blue-900/70 border border-blue-500/50 text-blue-300 font-bold px-2 py-0.5 rounded-full';
+                    footerBadge.innerText = '🧪 実験用モード';
+                }
+            }
+        }
+
+        function switchAppMode(targetMode) {
+            if (!['memory', 'free', 'none'].includes(targetMode)) targetMode = 'memory';
+
+            // 現在鑑賞中のスライドショーと同じ場合
+            if (targetMode === currentAppMode) {
+                showToast(`現在 ${slideshowLabels[targetMode]} を鑑賞中です`);
+                return;
+            }
+
+            // 自由鑑賞モードの場合は制限なし・即座に切り替え可能
+            if (appUsageMode === 'free') {
+                executeAppModeSwitch(targetMode);
+                return;
+            }
+
+            // 実験用モードの場合
+            // ① すでに鑑賞済みのスライドショーへ戻ろうとした場合はブロック
+            if (visitedSlideshows.includes(targetMode)) {
+                alert(`【鑑賞済みのため戻れません】\n${slideshowLabels[targetMode]} はすでに鑑賞完了しています。\n実験の公平性（順序効果の防止）のため、前のスライドショーに戻ることはできません。`);
+                return;
+            }
+
+            // ② まだ鑑賞していないスライドショーへ進む場合: アンケート確認モーダルを表示
+            pendingModeSwitchTarget = targetMode;
+            const msgEl = document.getElementById('switch-confirm-message');
+            if (msgEl) {
+                msgEl.innerHTML = `現在の<strong>「${slideshowLabels[currentAppMode]}」</strong>の鑑賞アンケートへの回答はお済みですか？<br>回答完了後、<strong>「${slideshowLabels[targetMode]}」</strong>へ進みます。`;
+            }
+            const modal = document.getElementById('switch-confirm-modal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeSwitchConfirmModal() {
+            const modal = document.getElementById('switch-confirm-modal');
+            if (modal) modal.classList.add('hidden');
+            pendingModeSwitchTarget = null;
+        }
+
+        function confirmModeSwitch() {
+            if (!pendingModeSwitchTarget) return;
+            const target = pendingModeSwitchTarget;
+            closeSwitchConfirmModal();
+
+            // 直前のスライドショーを鑑賞済みとして記録
+            if (!visitedSlideshows.includes(currentAppMode)) {
+                visitedSlideshows.push(currentAppMode);
+                try {
+                    localStorage.setItem('study_visited_slideshows', JSON.stringify(visitedSlideshows));
+                } catch(e) {}
+            }
+
+            executeAppModeSwitch(target);
+
+            // もし3つすべてのスライドショーを体験した状態になった場合
+            if (visitedSlideshows.length >= 2) {
+                setTimeout(() => {
+                    openExperimentFinishedModal();
+                }, 1500);
+            }
+        }
+
+        function openExperimentFinishedModal() {
+            const modal = document.getElementById('experiment-finished-modal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeExperimentFinishedModal() {
+            const modal = document.getElementById('experiment-finished-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function switchToFreeUsageFromFinished() {
+            closeExperimentFinishedModal();
+            selectUsageMode('free');
+        }
+
+        function executeAppModeSwitch(mode) {
             currentAppMode = mode;
             try {
                 localStorage.setItem('study_app_mode', mode);
@@ -800,12 +1103,7 @@
                 applyAppModeToPlayer();
             }
 
-            const modeLabels = {
-                'none': 'モードA (BGMなし)',
-                'free': 'モードB (フリーBGM)',
-                'memory': 'モードC (思い出音楽プレーヤー)'
-            };
-            showToast(`${modeLabels[mode]} に切り替えました`);
+            showToast(`${slideshowLabels[mode]} に切り替えました`);
         }
 
         function updateModeSwitchBarUI() {
@@ -816,26 +1114,40 @@
             const titleEl = document.getElementById('main-app-title');
             const subtitleEl = document.getElementById('main-app-subtitle');
 
-            const activeClass = "mode-switch-btn flex-1 min-w-[110px] px-3 py-2 font-bold rounded-lg transition active:scale-95 bg-blue-600 text-white border-2 border-blue-400 shadow-md ring-2 ring-blue-500/30 cursor-pointer text-xs text-center";
-            const inactiveClass = "mode-switch-btn flex-1 min-w-[110px] px-3 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-xs text-center";
+            const isExp = (appUsageMode !== 'free');
 
-            if (btnMemory) btnMemory.className = (currentAppMode === 'memory') ? activeClass : inactiveClass;
-            if (btnFree) btnFree.className = (currentAppMode === 'free') ? activeClass : inactiveClass;
-            if (btnNone) btnNone.className = (currentAppMode === 'none') ? activeClass : inactiveClass;
+            const modesConfig = [
+                { id: 'none', btn: btnNone, name: 'スライドショーA', desc: 'BGMなし', title: 'スライドショーA', sub: '写真と静かに向き合い、あの日を振り返る' },
+                { id: 'free', btn: btnFree, name: 'スライドショーB', desc: 'フリーBGM', title: 'スライドショーB', sub: 'フリーBGMとともに写真を楽しむ' },
+                { id: 'memory', btn: btnMemory, name: 'スライドショーC', desc: '思い出音楽プレーヤー', title: 'スライドショーC', sub: '写真と当時の思い出の音楽で、あの日を振り返る' }
+            ];
 
-            if (currentAppMode === 'none') {
-                if (descEl) descEl.innerText = "モードA (BGMなし)";
-                if (titleEl) titleEl.innerText = "モードA";
-                if (subtitleEl) subtitleEl.innerText = "写真と静かに向き合い、あの日を振り返る";
-            } else if (currentAppMode === 'free') {
-                if (descEl) descEl.innerText = "モードB (フリーBGM)";
-                if (titleEl) titleEl.innerText = "モードB";
-                if (subtitleEl) subtitleEl.innerText = "フリーBGMとともに写真を楽しむ";
-            } else {
-                if (descEl) descEl.innerText = "モードC (思い出音楽プレーヤー)";
-                if (titleEl) titleEl.innerText = "思い出音楽プレーヤー";
-                if (subtitleEl) subtitleEl.innerText = "写真と音楽で、あの日を振り返る";
-            }
+            modesConfig.forEach(item => {
+                if (!item.btn) return;
+                const isCurrent = (currentAppMode === item.id);
+                const isVisited = isExp && visitedSlideshows.includes(item.id);
+
+                if (isCurrent) {
+                    item.btn.className = "mode-switch-btn flex-1 min-w-[110px] px-2.5 py-2 font-bold rounded-lg transition active:scale-95 bg-blue-600 text-white border-2 border-blue-400 shadow-md ring-2 ring-blue-500/30 cursor-pointer text-xs text-center";
+                    item.btn.disabled = false;
+                    item.btn.innerHTML = `${item.name} <span class="text-[10px] opacity-90 block sm:inline">(${item.desc})</span>`;
+                } else if (isVisited) {
+                    // 鑑賞済み（実験用モード時は戻れない）
+                    item.btn.className = "mode-switch-btn flex-1 min-w-[110px] px-2.5 py-2 font-semibold rounded-lg opacity-40 cursor-not-allowed bg-gray-900 text-gray-500 border border-gray-800 shadow-none text-xs text-center";
+                    item.btn.disabled = true;
+                    item.btn.innerHTML = `<span class="line-through">${item.name}</span> <span class="text-[9px] text-amber-400 block sm:inline font-bold">鑑賞済</span>`;
+                } else {
+                    // 未鑑賞（または自由鑑賞モード）
+                    item.btn.className = "mode-switch-btn flex-1 min-w-[110px] px-2.5 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-xs text-center";
+                    item.btn.disabled = false;
+                    item.btn.innerHTML = `${item.name} <span class="text-[10px] text-gray-400 block sm:inline">(${item.desc})</span>`;
+                }
+            });
+
+            const activeConfig = modesConfig.find(item => item.id === currentAppMode) || modesConfig[2];
+            if (descEl) descEl.innerText = `${activeConfig.name} (${activeConfig.desc})`;
+            if (titleEl) titleEl.innerText = activeConfig.title;
+            if (subtitleEl) subtitleEl.innerText = activeConfig.sub;
         }
 
         function renderCurrentAppModeHome() {
@@ -846,13 +1158,13 @@
             const step1Title = document.getElementById('step1-title');
 
             if (step1Title) {
-                step1Title.innerText = "音楽サブスクの再生履歴を読み込む（※モードCで使用）";
+                step1Title.innerText = "音楽サブスクの再生履歴を読み込む（※スライドショーCで使用）";
             }
 
-            // どのモードであってもファイル入力エリアは常時表示
+            // どのスライドショーであってもファイル入力エリアは常時表示
             if (inputArea) inputArea.classList.remove('hidden');
 
-            // 読み込み済みデータが存在していれば、どのモードであっても常時表示
+            // 読み込み済みデータが存在していれば、どのスライドショーであっても常時表示
             if (statusArea) {
                 if (rawStreamingData && Object.keys(rawStreamingData).length > 0) {
                     statusArea.classList.remove('hidden');
@@ -864,11 +1176,11 @@
             if (skipNotice && skipText) {
                 skipNotice.classList.remove('hidden');
                 if (currentAppMode === 'none') {
-                    skipText.innerHTML = "<strong>【モードA選択中】</strong><br>現在のモード（BGMなし）では再生履歴を使用しませんが、後ほどモードCを体験する際に使用します。ここで事前に読み込んでおくと、後から写真を読み直すことなくスムーズにモード切替できます。（※今すぐ読み込まずスキップして下のステップ2へ進むことも可能です）";
+                    skipText.innerHTML = "<strong>【スライドショーA選択中】</strong><br>現在のスライドショー（BGMなし）では再生履歴を使用しませんが、後ほどスライドショーCを体験する際に使用します。ここで事前に読み込んでおくと、後から写真を読み直すことなくスムーズに切り替えできます。（※今すぐ読み込まずスキップして下のステップ2へ進むことも可能です）";
                 } else if (currentAppMode === 'free') {
-                    skipText.innerHTML = "<strong>【モードB選択中】</strong><br>現在のモード（フリーBGM）では再生履歴を使用しませんが、後ほどモードCを体験する際に使用します。ここで事前に読み込んでおくと、後から写真を読み直すことなくスムーズにモード切替できます。（※今すぐ読み込まずスキップして下のステップ2へ進むことも可能です）";
+                    skipText.innerHTML = "<strong>【スライドショーB選択中】</strong><br>現在のスライドショー（フリーBGM）では再生履歴を使用しませんが、後ほどスライドショーCを体験する際に使用します。ここで事前に読み込んでおくと、後から写真を読み直すことなくスムーズに切り替えできます。（※今すぐ読み込まずスキップして下のステップ2へ進むことも可能です）";
                 } else {
-                    skipText.innerHTML = "<strong>【モードC選択中】</strong><br>写真の日時と同期して、あなたが当時聴いていた曲がBGMとして再生されます。ファイルを選択して読み込んでください。（※履歴がない期間でも、当時のBillboard JAPANヒット曲から自動で選曲されます）";
+                    skipText.innerHTML = "<strong>【スライドショーC選択中】</strong><br>写真の日時と同期して、あなたが当時聴いていた曲がBGMとして再生されます。ファイルを選択して読み込んでください。（※履歴がない期間でも、当時のBillboard JAPANヒット曲から自動で選曲されます）";
                 }
             }
 
@@ -2164,7 +2476,7 @@
             if (currentAppMode === 'none' || currentAppMode === 'free') {
                 if (hasPhotos) {
                     btn.disabled = false;
-                    btn.innerText = (currentAppMode === 'free') ? "フリーBGMで思い出を振り返る" : "無音で思い出を振り返る";
+                    btn.innerText = (currentAppMode === 'free') ? "スライドショーBを開始する（フリーBGM）" : "スライドショーAを開始する（BGMなし）";
                     btn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
                     btn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-700', 'active:scale-95', 'shadow-md', 'cursor-pointer');
                 } else {
@@ -2176,12 +2488,12 @@
             } else {
                 if (hasTracks || hasPhotos) {
                     btn.disabled = false;
-                    btn.innerText = "思い出を振り返る";
+                    btn.innerText = "スライドショーCを開始する（思い出音楽プレーヤー）";
                     btn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
                     btn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-700', 'active:scale-95', 'shadow-md', 'cursor-pointer');
                 } else {
                     btn.disabled = true;
-                    btn.innerText = "準備中...";
+                    btn.innerText = "写真を選択してください";
                     btn.classList.add('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
                     btn.classList.remove('bg-blue-600', 'text-white', 'hover:bg-blue-700', 'active:scale-95', 'cursor-pointer');
                 }
@@ -4543,6 +4855,18 @@
                 if (e.key === 'Escape') closeGuideModal();
                 else if (e.key === 'ArrowLeft') prevGuideStep();
                 else if (e.key === 'ArrowRight') nextGuideStep();
+                return;
+            }
+
+            const switchModal = document.getElementById('switch-confirm-modal');
+            if (switchModal && !switchModal.classList.contains('hidden')) {
+                if (e.key === 'Escape') closeSwitchConfirmModal();
+                return;
+            }
+
+            const expFinishModal = document.getElementById('experiment-finished-modal');
+            if (expFinishModal && !expFinishModal.classList.contains('hidden')) {
+                if (e.key === 'Escape') closeExperimentFinishedModal();
                 return;
             }
 
