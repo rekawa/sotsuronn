@@ -1253,34 +1253,27 @@
 
             PERITUNE_TRACKS.forEach((t, idx) => {
                 const isPlaying = (idx === activePerituneIndex);
-                const isFirst = (idx === 0);
-                const isLast = (idx === PERITUNE_TRACKS.length - 1);
 
                 const div = document.createElement('div');
-                div.className = `playlist-item p-2.5 rounded-xl border flex items-center justify-between transition ${isPlaying ? 'playing border-blue-500 bg-blue-50 shadow-xs' : 'bg-white border-gray-200 hover:bg-gray-50'}`;
+                div.className = `playlist-item p-2.5 rounded-xl border flex items-center justify-between transition select-none ${isPlaying ? 'playing border-blue-500 bg-blue-50 shadow-xs' : 'bg-white border-gray-200 hover:bg-gray-50'}`;
                 div.setAttribute('draggable', 'true');
+                div.dataset.index = idx;
 
                 div.innerHTML = `
-                    <div class="flex items-center space-x-2 min-w-0 flex-1 cursor-pointer track-click-area">
+                    <div class="flex items-center space-x-2 min-w-0 flex-1">
                         <!-- ドラッグハンドル (三本線) -->
-                        <span class="text-gray-400 hover:text-gray-700 text-sm cursor-grab select-none px-1" title="ドラッグして並び替え">≡</span>
-                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${isPlaying ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'} shrink-0">
-                            ${idx + 1}
-                        </div>
-                        <div class="min-w-0 truncate">
-                            <p class="text-xs font-bold text-gray-900 truncate">${escapeHtml(t.name)}</p>
-                            <p class="text-[10px] text-gray-500 truncate">${escapeHtml(t.artist)}</p>
+                        <span class="drag-handle text-gray-400 hover:text-gray-700 text-base cursor-grab active:cursor-grabbing select-none px-1.5 touch-none shrink-0" title="ドラッグして並び替え">≡</span>
+                        <div class="flex items-center space-x-2 min-w-0 flex-1 cursor-pointer track-click-area">
+                            <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${isPlaying ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'} shrink-0">
+                                ${idx + 1}
+                            </div>
+                            <div class="min-w-0 truncate">
+                                <p class="text-xs font-bold text-gray-900 truncate">${escapeHtml(t.name)}</p>
+                                <p class="text-[10px] text-gray-500 truncate">${escapeHtml(t.artist)}</p>
+                            </div>
                         </div>
                     </div>
                     <div class="shrink-0 flex items-center space-x-1 ml-2">
-                        <!-- 上へ移動ボタン -->
-                        <button type="button" class="btn-move-up p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-blue-600 text-xs font-bold ${isFirst ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer active:scale-90'}" title="上へ移動" ${isFirst ? 'disabled' : ''}>
-                            ▲
-                        </button>
-                        <!-- 下へ移動ボタン -->
-                        <button type="button" class="btn-move-down p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-blue-600 text-xs font-bold ${isLast ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer active:scale-90'}" title="下へ移動" ${isLast ? 'disabled' : ''}>
-                            ▼
-                        </button>
                         ${isPlaying ? '<span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold ml-1">再生中</span>' : '<button type="button" class="btn-play text-xs text-blue-600 hover:bg-blue-100 p-1 rounded cursor-pointer ml-1">▶</button>'}
                     </div>
                 `;
@@ -1289,23 +1282,7 @@
                 const playBtn = div.querySelector('.btn-play');
                 if (playBtn) playBtn.onclick = () => playPerituneTrack(idx);
 
-                const upBtn = div.querySelector('.btn-move-up');
-                if (upBtn && !isFirst) {
-                    upBtn.onclick = (e) => {
-                        e.stopPropagation();
-                        movePerituneTrack(idx, idx - 1);
-                    };
-                }
-
-                const downBtn = div.querySelector('.btn-move-down');
-                if (downBtn && !isLast) {
-                    downBtn.onclick = (e) => {
-                        e.stopPropagation();
-                        movePerituneTrack(idx, idx + 1);
-                    };
-                }
-
-                // ドラッグ＆ドロップイベント
+                // ドラッグ＆ドロップイベント (マウス)
                 div.addEventListener('dragstart', (e) => {
                     e.dataTransfer.setData('text/plain', String(idx));
                     div.classList.add('opacity-50');
@@ -1328,6 +1305,45 @@
                         movePerituneTrack(fromIdx, idx);
                     }
                 });
+
+                // タッチデバイス対応 (三本線の長押し・スライド)
+                const handle = div.querySelector('.drag-handle');
+                let touchTargetIdx = null;
+                if (handle) {
+                    handle.addEventListener('touchstart', () => {
+                        div.classList.add('opacity-50');
+                    }, { passive: true });
+
+                    handle.addEventListener('touchmove', (e) => {
+                        e.preventDefault();
+                        const touch = e.touches[0];
+                        const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+                        const itemEl = targetEl ? targetEl.closest('.playlist-item') : null;
+
+                        container.querySelectorAll('.playlist-item').forEach(el => el.classList.remove('bg-blue-100/60'));
+                        if (itemEl && itemEl !== div) {
+                            itemEl.classList.add('bg-blue-100/60');
+                            touchTargetIdx = parseInt(itemEl.dataset.index, 10);
+                        } else {
+                            touchTargetIdx = null;
+                        }
+                    }, { passive: false });
+
+                    handle.addEventListener('touchend', () => {
+                        div.classList.remove('opacity-50');
+                        container.querySelectorAll('.playlist-item').forEach(el => el.classList.remove('bg-blue-100/60'));
+                        if (touchTargetIdx !== null && !isNaN(touchTargetIdx) && touchTargetIdx !== idx) {
+                            movePerituneTrack(idx, touchTargetIdx);
+                        }
+                        touchTargetIdx = null;
+                    });
+
+                    handle.addEventListener('touchcancel', () => {
+                        div.classList.remove('opacity-50');
+                        container.querySelectorAll('.playlist-item').forEach(el => el.classList.remove('bg-blue-100/60'));
+                        touchTargetIdx = null;
+                    });
+                }
 
                 container.appendChild(div);
             });
@@ -3352,8 +3368,6 @@
             tracks.forEach((trackObj, i) => {
                 const isPlaying = (i === activeTrackIndex);
                 const rankText = trackObj.source === 'streaming' && trackObj.rank ? (rankBadges[trackObj.rank - 1] || `${trackObj.rank}位`) : '追加曲';
-                const isFirst = (i === 0);
-                const isLast = (i === tracks.length - 1);
                 
                 const itemDiv = document.createElement('div');
                 itemDiv.className = `playlist-item border rounded-xl p-2.5 flex items-center justify-between transition-colors select-none ${isPlaying ? 'playing shadow-xs' : 'bg-white hover:bg-gray-50'}`;
@@ -3362,8 +3376,8 @@
 
                 itemDiv.innerHTML = `
                     <div class="flex items-center overflow-hidden flex-1 mr-2">
-                        <!-- ドラッグハンドル -->
-                        <span class="drag-handle text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing px-1 mr-1 text-sm font-bold select-none shrink-0" title="ドラッグして並び替え">
+                        <!-- ドラッグハンドル (三本線) -->
+                        <span class="drag-handle text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing px-1.5 mr-1 text-base font-bold select-none touch-none shrink-0" title="ドラッグして並び替え">
                             ≡
                         </span>
                         <div class="flex items-center overflow-hidden flex-1 cursor-pointer track-click-area">
@@ -3377,14 +3391,6 @@
                         </div>
                     </div>
                     <div class="flex items-center space-x-1 shrink-0 ml-2">
-                        <!-- 上へ移動ボタン -->
-                        <button type="button" class="btn-move-up p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-blue-600 text-xs font-bold ${isFirst ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer active:scale-90'}" title="上へ移動" ${isFirst ? 'disabled' : ''}>
-                            ▲
-                        </button>
-                        <!-- 下へ移動ボタン -->
-                        <button type="button" class="btn-move-down p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-blue-600 text-xs font-bold ${isLast ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer active:scale-90'}" title="下へ移動" ${isLast ? 'disabled' : ''}>
-                            ▼
-                        </button>
                         ${isPlaying ? '<span class="text-blue-500 text-[10px] font-bold animate-pulse ml-1">再生中</span>' : '<button type="button" class="play-btn text-xs text-blue-600 hover:underline px-1 ml-1 cursor-pointer">▶</button>'}
                         <button type="button" title="削除" class="delete-song-btn text-gray-400 hover:text-red-500 p-1 rounded-md text-xs hover:bg-red-50 transition cursor-pointer">
                             🗑️
@@ -3395,22 +3401,6 @@
                 itemDiv.querySelector('.track-click-area').addEventListener('click', () => playTrack(i));
                 const playBtn = itemDiv.querySelector('.play-btn');
                 if (playBtn) playBtn.addEventListener('click', () => playTrack(i));
-
-                const upBtn = itemDiv.querySelector('.btn-move-up');
-                if (upBtn && !isFirst) {
-                    upBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        moveCurrentPeriodTrack(i, i - 1);
-                    });
-                }
-
-                const downBtn = itemDiv.querySelector('.btn-move-down');
-                if (downBtn && !isLast) {
-                    downBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        moveCurrentPeriodTrack(i, i + 1);
-                    });
-                }
                 
                 itemDiv.querySelector('.delete-song-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -3419,7 +3409,7 @@
                     }
                 });
 
-                // ドラッグ＆ドロップイベント
+                // ドラッグ＆ドロップイベント (マウス)
                 itemDiv.addEventListener('dragstart', (e) => {
                     e.dataTransfer.setData('text/plain', String(i));
                     itemDiv.classList.add('opacity-50');
@@ -3442,6 +3432,45 @@
                         moveCurrentPeriodTrack(fromIdx, i);
                     }
                 });
+
+                // タッチデバイス対応 (三本線の長押し・スライド)
+                const handle = itemDiv.querySelector('.drag-handle');
+                let touchTargetIdx = null;
+                if (handle) {
+                    handle.addEventListener('touchstart', () => {
+                        itemDiv.classList.add('opacity-50');
+                    }, { passive: true });
+
+                    handle.addEventListener('touchmove', (e) => {
+                        e.preventDefault();
+                        const touch = e.touches[0];
+                        const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+                        const targetItem = targetEl ? targetEl.closest('.playlist-item') : null;
+
+                        container.querySelectorAll('.playlist-item').forEach(el => el.classList.remove('bg-blue-100/60'));
+                        if (targetItem && targetItem !== itemDiv) {
+                            targetItem.classList.add('bg-blue-100/60');
+                            touchTargetIdx = parseInt(targetItem.dataset.index, 10);
+                        } else {
+                            touchTargetIdx = null;
+                        }
+                    }, { passive: false });
+
+                    handle.addEventListener('touchend', () => {
+                        itemDiv.classList.remove('opacity-50');
+                        container.querySelectorAll('.playlist-item').forEach(el => el.classList.remove('bg-blue-100/60'));
+                        if (touchTargetIdx !== null && !isNaN(touchTargetIdx) && touchTargetIdx !== i) {
+                            moveCurrentPeriodTrack(i, touchTargetIdx);
+                        }
+                        touchTargetIdx = null;
+                    });
+
+                    handle.addEventListener('touchcancel', () => {
+                        itemDiv.classList.remove('opacity-50');
+                        container.querySelectorAll('.playlist-item').forEach(el => el.classList.remove('bg-blue-100/60'));
+                        touchTargetIdx = null;
+                    });
+                }
 
                 container.appendChild(itemDiv);
             });
