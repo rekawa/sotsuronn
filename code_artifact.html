@@ -85,6 +85,13 @@
 
                             <input type="file" id="streaming-file" multiple accept=".json,.csv" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer">
                             <p id="streaming-loading" class="text-xs text-blue-500 mt-2 font-bold hidden">履歴ファイルを解析中... お待ちください</p>
+                            
+                            <!-- 履歴初期化ボタン (常時アクセス可能) -->
+                            <div class="mt-2.5 flex justify-end">
+                                <button id="reset-all-btn" type="button" class="text-[11px] text-gray-500 hover:text-red-600 border border-gray-300 hover:border-red-300 bg-white hover:bg-red-50 rounded-lg px-2.5 py-1 transition active:scale-95 flex items-center cursor-pointer shadow-2xs">
+                                    🗑️ 全履歴を初期化
+                                </button>
+                            </div>
                         </div>
 
                         <!-- 読み込み済みファイル一覧エリア -->
@@ -100,11 +107,8 @@
                             <div id="streaming-files-list" class="space-y-1.5 mb-2.5"></div>
 
                             <div class="flex flex-wrap gap-2">
-                                <button id="add-more-streaming-btn" type="button" class="text-xs text-blue-600 border border-blue-200 bg-white font-bold rounded-lg px-2.5 py-1.5 hover:bg-blue-50 transition active:scale-95 shadow-xs flex items-center">
+                                <button id="add-more-streaming-btn" type="button" class="text-xs text-blue-600 border border-blue-200 bg-white font-bold rounded-lg px-2.5 py-1.5 hover:bg-blue-50 transition active:scale-95 shadow-xs flex items-center cursor-pointer">
                                     <span class="mr-1 text-sm font-black">＋</span> 別のファイルを追加で読み込む
-                                </button>
-                                <button id="reset-all-btn" type="button" class="text-xs text-red-500 border border-red-200 bg-white rounded-lg px-2.5 py-1.5 hover:bg-red-50 transition active:scale-95 flex items-center">
-                                    🗑️ 全履歴を初期化
                                 </button>
                             </div>
                         </div>
@@ -370,7 +374,7 @@
                 <div class="mb-4">
                     <label class="block text-xs font-bold text-gray-600 mb-1">カレンダーから指定</label>
                     <div class="flex space-x-2">
-                        <input type="date" id="calendar-input" class="border border-gray-300 rounded-lg px-3 py-1.5 text-xs w-full outline-none focus:border-blue-500">
+                        <input type="date" id="calendar-input" min="2008-01-16" class="border border-gray-300 rounded-lg px-3 py-1.5 text-xs w-full outline-none focus:border-blue-500">
                         <button id="jump-to-date-btn" class="bg-blue-600 text-white font-bold text-xs px-3 py-1.5 rounded-lg hover:bg-blue-700 active:scale-95 transition whitespace-nowrap">
                             移動
                         </button>
@@ -501,6 +505,10 @@
                             <button type="button" id="settings-reset-exp-btn" onclick="resetExperimentProgress()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-1.5 px-2.5 rounded-lg text-xs transition border border-gray-300 text-left flex items-center justify-between cursor-pointer">
                                 <span>🔄 実験の進行状況をリセット</span>
                                 <span class="text-[10px] text-gray-400">最初から</span>
+                            </button>
+                            <button type="button" onclick="confirmResetStreamingHistory()" class="w-full bg-red-50 hover:bg-red-100 text-red-600 font-medium py-1.5 px-2.5 rounded-lg text-xs transition border border-red-200 text-left flex items-center justify-between cursor-pointer">
+                                <span>🗑️ 音楽サブスク履歴を初期化</span>
+                                <span class="text-[10px] text-red-400">全消去</span>
                             </button>
                         </div>
                     </div>
@@ -1717,14 +1725,19 @@
             });
         }
 
-        document.getElementById('reset-all-btn').addEventListener('click', async () => {
-            if (confirm("【初期化】保存されているすべての履歴と手動追加曲をリセットしますか？")) {
+        async function confirmResetStreamingHistory() {
+            if (confirm("【初期化】ブラウザに保存されているすべての音楽サブスク再生履歴・手動追加曲をリセットしますか？\n（※読み込んだ写真はリロードで自動消去されます）")) {
                 try {
                     await localforage.clear();
                 } catch (e) {}
                 location.reload();
             }
-        });
+        }
+
+        const resetAllBtn = document.getElementById('reset-all-btn');
+        if (resetAllBtn) {
+            resetAllBtn.addEventListener('click', confirmResetStreamingHistory);
+        }
 
         // ==========================================
         // 5. サブスク履歴ファイルの解析 (TOP5曲抽出)
@@ -2602,26 +2615,22 @@
                 } else if (navMode === 'history') {
                     dates = Array.from(historyDatesSet).sort((a, b) => new Date(a) - new Date(b));
                 } else {
-                    if (allKnownDates.length > 0) {
-                        const minDate = new Date(allKnownDates[0] + 'T00:00:00');
-                        const maxDate = new Date(allKnownDates[allKnownDates.length - 1] + 'T00:00:00');
-                        const cur = new Date(minDate);
-                        while (cur <= maxDate) {
-                            const y = cur.getFullYear();
-                            const m = String(cur.getMonth() + 1).padStart(2, '0');
-                            const d = String(cur.getDate()).padStart(2, '0');
-                            const dateStr = `${y}-${m}-${d}`;
-                            if (!isDateHidden(dateStr)) {
-                                dates.push(dateStr);
-                            }
-                            cur.setDate(cur.getDate() + 1);
+                    // 'all': Billboard JAPAN集計開始の2008年1月1日〜現在(または登録データの最大日)まで全カレンダー展開
+                    const minDate = new Date('2008-01-01T00:00:00');
+                    const today = new Date();
+                    const maxKnown = (allKnownDates.length > 0) ? new Date(allKnownDates[allKnownDates.length - 1] + 'T00:00:00') : today;
+                    const maxDate = (maxKnown > today) ? maxKnown : today;
+
+                    const cur = new Date(minDate);
+                    while (cur <= maxDate) {
+                        const y = cur.getFullYear();
+                        const m = String(cur.getMonth() + 1).padStart(2, '0');
+                        const d = String(cur.getDate()).padStart(2, '0');
+                        const dateStr = `${y}-${m}-${d}`;
+                        if (!isDateHidden(dateStr)) {
+                            dates.push(dateStr);
                         }
-                    } else {
-                        const today = new Date();
-                        const y = today.getFullYear();
-                        const m = String(today.getMonth() + 1).padStart(2, '0');
-                        const d = String(today.getDate()).padStart(2, '0');
-                        dates = [`${y}-${m}-${d}`];
+                        cur.setDate(cur.getDate() + 1);
                     }
                 }
 
@@ -2647,24 +2656,26 @@
             } else if (timeSpanMode === 'week') {
                 let mondayList = [];
                 if (navMode === 'all') {
+                    // 2008年1月14日(Billboard JAPAN公式第1週) 〜 現在週まで全週生成
+                    const startMonday = '2008-01-14';
+                    const today = new Date();
+                    const todayYMD = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                    let endMonday = getMondayOfWeek(todayYMD);
                     if (allKnownDates.length > 0) {
-                        const startMonday = getMondayOfWeek(allKnownDates[0]);
-                        const endMonday = getMondayOfWeek(allKnownDates[allKnownDates.length - 1]);
-                        let cur = new Date(startMonday + 'T00:00:00');
-                        const end = new Date(endMonday + 'T00:00:00');
-                        while (cur <= end) {
-                            const y = cur.getFullYear();
-                            const m = String(cur.getMonth() + 1).padStart(2, '0');
-                            const d = String(cur.getDate()).padStart(2, '0');
-                            mondayList.push(`${y}-${m}-${d}`);
-                            cur.setDate(cur.getDate() + 7);
+                        const maxMonday = getMondayOfWeek(allKnownDates[allKnownDates.length - 1]);
+                        if (new Date(maxMonday) > new Date(endMonday)) {
+                            endMonday = maxMonday;
                         }
-                    } else {
-                        const today = new Date();
-                        const y = today.getFullYear();
-                        const m = String(today.getMonth() + 1).padStart(2, '0');
-                        const d = String(today.getDate()).padStart(2, '0');
-                        mondayList.push(getMondayOfWeek(`${y}-${m}-${d}`));
+                    }
+
+                    let cur = new Date(startMonday + 'T00:00:00');
+                    const end = new Date(endMonday + 'T00:00:00');
+                    while (cur <= end) {
+                        const y = cur.getFullYear();
+                        const m = String(cur.getMonth() + 1).padStart(2, '0');
+                        const d = String(cur.getDate()).padStart(2, '0');
+                        mondayList.push(`${y}-${m}-${d}`);
+                        cur.setDate(cur.getDate() + 7);
                     }
                 } else {
                     const mondaysSet = new Set();
@@ -2712,24 +2723,28 @@
             } else if (timeSpanMode === 'month') {
                 let ymList = [];
                 if (navMode === 'all') {
+                    // 2008年1月 〜 現在月まで全月生成
+                    const startYM = '2008-01';
+                    const today = new Date();
+                    let endYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
                     if (allKnownDates.length > 0) {
-                        const startYM = allKnownDates[0].slice(0, 7);
-                        const endYM = allKnownDates[allKnownDates.length - 1].slice(0, 7);
-                        const [sy, sm] = startYM.split('-').map(Number);
-                        const [ey, em] = endYM.split('-').map(Number);
-                        let curY = sy;
-                        let curM = sm;
-                        while (curY < ey || (curY === ey && curM <= em)) {
-                            ymList.push(`${curY}-${String(curM).padStart(2, '0')}`);
-                            curM++;
-                            if (curM > 12) {
-                                curM = 1;
-                                curY++;
-                            }
+                        const maxYM = allKnownDates[allKnownDates.length - 1].slice(0, 7);
+                        if (maxYM > endYM) {
+                            endYM = maxYM;
                         }
-                    } else {
-                        const today = new Date();
-                        ymList.push(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
+                    }
+
+                    const [sy, sm] = startYM.split('-').map(Number);
+                    const [ey, em] = endYM.split('-').map(Number);
+                    let curY = sy;
+                    let curM = sm;
+                    while (curY < ey || (curY === ey && curM <= em)) {
+                        ymList.push(`${curY}-${String(curM).padStart(2, '0')}`);
+                        curM++;
+                        if (curM > 12) {
+                            curM = 1;
+                            curY++;
+                        }
                     }
                 } else {
                     const ymSet = new Set();
@@ -3011,15 +3026,20 @@
                 const sArtist = normalizeStr(song.artistName);
                 const sCleanTrack = normalizeStr(cleanSongTitle(song.trackName));
                 const sRawTrack = normalizeStr(song.trackName);
+                const sMainTitle = normalizeStr(song.trackName.split(/\s*[-–—〜～]\s*/)[0]);
+                const targetMainTitle = normalizeStr(targetTrack.split(/\s*[-–—〜～]\s*/)[0]);
 
                 // 1. 曲名照合 (重要ガード: 曲名不一致は絶対に除外)
                 let titleScore = 0;
-                if (sCleanTrack === normTargetTrack || sRawTrack === normRawTrack) {
+                if (sCleanTrack === normTargetTrack || sRawTrack === normRawTrack || sMainTitle === normTargetTrack || sMainTitle === targetMainTitle) {
                     titleScore = 100;
                 } else if (normTargetTrack.length >= 2 && (sCleanTrack.includes(normTargetTrack) || normTargetTrack.includes(sCleanTrack))) {
                     titleScore = 85;
                 } else if (normRawTrack.length >= 2 && (sRawTrack.includes(normTargetTrack) || normTargetTrack.includes(sRawTrack))) {
                     titleScore = 80;
+                } else if (normTargetTrack.length === 1 && (sCleanTrack.startsWith(normTargetTrack) || sRawTrack.startsWith(normTargetTrack) || sMainTitle === normTargetTrack)) {
+                    // 1文字の曲名（例: 「烏」「糸」「炎」「虹」など）で先頭一致またはメインタイトル一致
+                    titleScore = 90;
                 }
 
                 if (titleScore === 0) {
@@ -3913,6 +3933,9 @@
             const period = getCurrentPeriod();
             const currentDateStr = period ? period.primaryDate : (activeDatesList[currentIndex] || '');
             calendarInput.value = currentDateStr;
+            calendarInput.min = '2008-01-16';
+            const today = new Date();
+            calendarInput.max = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
             renderPhotoDatesList();
             dateModal.classList.remove('hidden');
         });
@@ -4641,6 +4664,7 @@
             // アクティブレイヤーを交代
             activePhotoLayer = isA ? 'b' : 'a';
             currentPhotoSrc = newSrc;
+            photoLoadConsecutiveFailures = 0; // 正常表示成功でリセット
 
             // フェードイン完了後、奥に回った古いレイヤーのopacityを0にして待機
             fadeTransitionTimer = setTimeout(() => {
@@ -4654,19 +4678,21 @@
             }, 650);
         }
 
+        let photoLoadConsecutiveFailures = 0;
+
         function handlePhotoLoadError(photos, failedIdx, isSlideSwitch) {
             const loadingLayer = document.getElementById('photo-loading-layer');
             if (loadingLayer) loadingLayer.classList.add('hidden');
 
-            if (photos && photos.length > 1) {
-                // 写真が複数枚あるなら、壊れた写真で画面を止めず次の写真へ自動フォールバック
-                console.warn(`写真[${failedIdx}]の表示に失敗したため、次の写真を試行します。`);
-                slidePhotoIndex = (failedIdx + 1) % photos.length;
-                showSlidePhoto(photos, slidePhotoIndex, isSlideSwitch);
-                renderSlideDots(photos.length, slidePhotoIndex);
-                updatePhotoNavUI(photos, slidePhotoIndex);
-            } else {
-                // 1枚しかなくてそれも表示できない場合のみエラーレイヤーを表示
+            photoLoadConsecutiveFailures++;
+
+            // 写真枚数以上の回数連続で失敗した場合、全写真が読み込めないと判定して安全に停止
+            if (!photos || photos.length <= 1 || photoLoadConsecutiveFailures >= photos.length) {
+                photoLoadConsecutiveFailures = 0;
+                if (slideShowInterval) {
+                    clearInterval(slideShowInterval);
+                    slideShowInterval = null;
+                }
                 const mainA = document.getElementById('photo-main-a');
                 const mainB = document.getElementById('photo-main-b');
                 const blurA = document.getElementById('photo-blur-a');
@@ -4678,7 +4704,18 @@
                 if (blurA) { blurA.style.opacity = '0'; blurA.src = ''; }
                 if (blurB) { blurB.style.opacity = '0'; blurB.src = ''; }
                 if (errorLayer) errorLayer.classList.remove('hidden');
+                return;
             }
+
+            // 次の写真を試行（同期ループを完全防止するため遅延実行）
+            console.warn(`写真[${failedIdx}]の表示に失敗したため、次の写真を試行します。(連続失敗: ${photoLoadConsecutiveFailures}/${photos.length})`);
+            slidePhotoIndex = (failedIdx + 1) % photos.length;
+            renderSlideDots(photos.length, slidePhotoIndex);
+            updatePhotoNavUI(photos, slidePhotoIndex);
+
+            setTimeout(() => {
+                showSlidePhoto(photos, slidePhotoIndex, isSlideSwitch);
+            }, 300);
         }
 
         function restorePhotoDisplayState() {
