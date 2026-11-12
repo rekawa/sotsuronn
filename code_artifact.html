@@ -641,29 +641,6 @@
             </div>
         </div>
 
-        <!-- ========================================== -->
-        <!-- 実験用モード: 全スライドショー鑑賞完了モーダル -->
-        <!-- ========================================== -->
-        <div id="experiment-finished-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm p-4">
-            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-gray-800 text-center">
-                <span class="inline-block p-4 bg-green-100 text-green-600 rounded-full mb-3 text-3xl font-bold">🎉</span>
-                <h3 class="text-base font-bold text-gray-900 mb-2">全スライドショーの鑑賞完了！</h3>
-                <p class="text-xs text-gray-600 mb-4 leading-relaxed">
-                    すべてのスライドショーの鑑賞およびアンケートへのご協力、誠にありがとうございました！<br><br>
-                    これで実験手順はすべて完了です。今後は<strong>「自由鑑賞モード」</strong>に切り替えて、すべてのスライドショー（A / B / C）を自由にお楽しみいただけます。
-                </p>
-
-                <div class="space-y-2">
-                    <button type="button" onclick="switchToFreeUsageFromFinished()" class="w-full py-2.5 px-4 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-xl shadow transition active:scale-95 cursor-pointer">
-                        自由鑑賞モードに切り替えて楽しむ
-                    </button>
-                    <button type="button" onclick="closeExperimentFinishedModal()" class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition cursor-pointer">
-                        閉じる
-                    </button>
-                </div>
-            </div>
-        </div>
-
     </div>
 
     <!-- スライドショー切り替えフッター（画面最下部） -->
@@ -1056,28 +1033,6 @@
             }
 
             executeAppModeSwitch(target);
-
-            // もし3つすべてのスライドショーを体験した状態になった場合
-            if (visitedSlideshows.length >= 2) {
-                setTimeout(() => {
-                    openExperimentFinishedModal();
-                }, 1500);
-            }
-        }
-
-        function openExperimentFinishedModal() {
-            const modal = document.getElementById('experiment-finished-modal');
-            if (modal) modal.classList.remove('hidden');
-        }
-
-        function closeExperimentFinishedModal() {
-            const modal = document.getElementById('experiment-finished-modal');
-            if (modal) modal.classList.add('hidden');
-        }
-
-        function switchToFreeUsageFromFinished() {
-            closeExperimentFinishedModal();
-            selectUsageMode('free');
         }
 
         function executeAppModeSwitch(mode) {
@@ -4864,11 +4819,6 @@
                 return;
             }
 
-            const expFinishModal = document.getElementById('experiment-finished-modal');
-            if (expFinishModal && !expFinishModal.classList.contains('hidden')) {
-                if (e.key === 'Escape') closeExperimentFinishedModal();
-                return;
-            }
 
             const hasOpenModal = !searchModal.classList.contains('hidden') || 
                                  !hitsModal.classList.contains('hidden') || 
