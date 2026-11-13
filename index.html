@@ -531,7 +531,7 @@
                         <span class="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-black shadow-xs">？</span>
                         <div>
                             <h3 class="font-bold text-xs tracking-wide">アプリ操作説明ガイド</h3>
-                            <p id="guide-step-counter" class="text-[10px] text-gray-400 font-medium">1 / 10</p>
+                            <p id="guide-step-counter" class="text-[10px] text-gray-400 font-medium">1 / 23</p>
                         </div>
                     </div>
                     <button id="close-guide-btn" class="w-7 h-7 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white flex items-center justify-center transition active:scale-90 text-sm font-bold cursor-pointer" title="閉じる (Esc)">
@@ -541,13 +541,13 @@
 
                 <!-- ステップタイトル & 解説バナー (固定) -->
                 <div class="flex-shrink-0 px-3 py-1.5 bg-gray-900/60 border-b border-gray-800 text-center">
-                    <h4 id="guide-step-title" class="text-xs font-bold text-blue-300 leading-tight mb-0.5">ステップ 1: 音楽サブスク履歴の読み込み</h4>
-                    <p id="guide-step-desc" class="text-[11px] text-gray-300 leading-snug">「ファイル選択」を押して、音楽サブスクの視聴履歴データを読み込みます</p>
+                    <h4 id="guide-step-title" class="text-xs font-bold text-blue-300 leading-tight mb-0.5">ステップ 1: 操作説明の確認方法</h4>
+                    <p id="guide-step-desc" class="text-[11px] text-gray-300 leading-snug">右上の「？」ボタンから、いつでもアプリの操作説明を確認できます。</p>
                 </div>
 
                 <!-- 画像ビューアーエリア (上下見切れゼロ・flex-1 min-h-0 + 縦スクロール保険) -->
                 <div class="flex-1 min-h-0 relative w-full bg-black flex items-center justify-center overflow-y-auto p-2" style="-webkit-overflow-scrolling: touch;">
-                    <img id="guide-image" src="181230.jpg" alt="操作説明画像" class="max-h-full max-w-full w-auto h-auto object-contain block mx-auto rounded-lg shadow-2xl transition-opacity duration-150 cursor-pointer" title="タップで次の説明へ">
+                    <img id="guide-image" src="182162.jpg" alt="操作説明画像" class="max-h-full max-w-full w-auto h-auto object-contain block mx-auto rounded-lg shadow-2xl transition-opacity duration-150 cursor-pointer" title="タップで次の説明へ">
 
                     <!-- 前へボタン (オーバーレイ) -->
                     <button id="guide-prev-btn" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center font-bold text-base shadow-lg transition active:scale-90 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed">
@@ -561,8 +561,8 @@
 
                 <!-- モーダルフッター (固定) -->
                 <div class="flex-shrink-0 bg-gray-900/95 px-3.5 py-2 border-t border-gray-800 flex flex-col items-center space-y-1.5" style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom));">
-                    <!-- インジケータードット (10個) -->
-                    <div id="guide-dots-container" class="flex items-center space-x-1.5 py-0.5"></div>
+                    <!-- インジケータードット (23個) -->
+                    <div id="guide-dots-container" class="flex flex-wrap justify-center items-center gap-1 py-0.5"></div>
 
                     <!-- 前へ / 次へ ボタン -->
                     <div class="w-full flex items-center justify-between space-x-2">
@@ -4450,54 +4450,119 @@
         const guideModal = document.getElementById('guide-modal');
         const guideData = [
             {
-                src: '181230.jpg',
-                title: 'ステップ 1: 音楽サブスク履歴の読み込み',
-                desc: '「ファイル選択」を押して、音楽サブスクの視聴履歴データ（Spotify JSON または Apple Music CSV）を読み込みます。'
+                src: '182162.jpg',
+                title: 'ステップ 1: 操作説明の確認方法',
+                desc: '右上の「？」ボタンから、いつでもアプリの操作説明を確認できます。'
             },
             {
-                src: '181221.jpg',
-                title: 'ステップ 2: 思い出写真の選択',
-                desc: '「ファイル選択」を押して、思い出の写真を読み込ませます（何回でも追加可能）。'
+                src: '182163.jpg',
+                title: 'ステップ 2: 設定画面を開く',
+                desc: '右上の「⚙️」ボタンから設定画面を開きます。'
             },
             {
-                src: '181222.jpg',
-                title: 'ステップ 3: 振り返りの開始',
-                desc: 'ファイルの読み込みが終わったら、画面下の「思い出を振り返る」ボタンを押して次へ進みます。'
+                src: '182164.jpg',
+                title: 'ステップ 3: 非表示期間の設定',
+                desc: '振り返りたくない期間を設定すると、その期間はスライドショーでは非表示になります。'
             },
             {
-                src: '181223.jpg',
-                title: 'ステップ 4: メインプレーヤー画面',
-                desc: '思い出音楽プレーヤーが起動し、あの日聴いていた曲と写真が自動で連動して表示されます。'
+                src: '182165.jpg',
+                title: 'ステップ 4: 利用モードの切替・実験のリセット',
+                desc: '実験用モードと自由鑑賞モードを切り替えられます。また、不具合があれば実験を最初からやり直すこともできます。'
             },
             {
-                src: '181224.jpg',
-                title: 'ステップ 5: 写真と曲の表示エリア',
-                desc: '①画面中央に「思い出写真」が大きく表示され、②下部に「再生中の曲」がリアルタイムに表示されます。'
+                src: '182166.jpg',
+                title: 'ステップ 5: 音楽サブスク再生履歴の読み込み',
+                desc: '「ファイル選択」を押して、Spotify (.json) や Apple Music (.csv) の再生履歴データを読み込みます。'
             },
             {
-                src: '181225.jpg',
-                title: 'ステップ 6: 写真スライドショーの操作',
-                desc: '写真は自動でも切り替わります。「‹」「›」ボタンで手動移動でき、「＋写真を追加」からその日の写真を更に追加できます。'
+                src: '182167.jpg',
+                title: 'ステップ 6: 履歴ファイルの追加・削除・初期化',
+                desc: 'ファイルの追加は「＋別のファイルを追加で読み込む」から、個別削除は「×」から、すべての初期化は「全履歴を初期化」からできます。'
             },
             {
-                src: '181226.jpg',
-                title: 'ステップ 7: 当日の曲TOP10が自動再生',
-                desc: '読み込んだ再生履歴データから、その日聴いていたTOP10曲が一覧表示され、自動で順次再生されます。'
+                src: '182168.jpg',
+                title: 'ステップ 7: 思い出写真の選択',
+                desc: '「ファイル選択」を押して、思い出の写真を読み込みます。何回でも追加可能です（1回100枚上限）。'
             },
             {
-                src: '181227.jpg',
-                title: 'ステップ 8: 曲名検索から手動追加',
-                desc: '曲名から手動で曲を追加したい場合は、「＋曲名で検索して追加」を押して好きな曲を検索・追加できます。'
+                src: '182169.jpg',
+                title: 'ステップ 8: スライドショーの開始',
+                desc: '写真の読み込みが終わったら、画面下のボタンを押してスライドショーを開始します。'
             },
             {
-                src: '181228.jpg',
-                title: 'ステップ 9: 当時のヒット曲から追加',
-                desc: '当時の流行曲を追加したい場合は、「Billboard JAPAN 週間TOP10から選ぶ」を押して選択できます。'
+                src: '182170.jpg',
+                title: 'ステップ 9: 振り返る期間単位の切り替え',
+                desc: '「1日ごと」「週ごと」「月ごと」から期間単位を指定して振り返ることができます。'
             },
             {
-                src: '181229.jpg',
-                title: 'ステップ 10: 振り返る方法の切り替え',
-                desc: '「写真のある日」「履歴のある日」「すべての日」から、振り返りたい日の表示方法を選択できます。'
+                src: '182171.jpg',
+                title: 'ステップ 10: 振り返る方法の選択',
+                desc: '「写真あり（写真がある日だけ）」「履歴あり（曲の再生履歴がある日だけ）」「すべて（1日ずつ順番）」から選べます。'
+            },
+            {
+                src: '182172.jpg',
+                title: 'ステップ 11: 日付ジャンプを開く',
+                desc: '日付部分をタップすると、日付ジャンプ（カレンダー）を開くことができます。'
+            },
+            {
+                src: '182173.jpg',
+                title: 'ステップ 12: カレンダーから日付移動',
+                desc: 'カレンダーから日付を選択し、「移動」ボタンで自由に日付を移動できます。'
+            },
+            {
+                src: '182174.jpg',
+                title: 'ステップ 13: 写真の並び順の選択',
+                desc: '読み込んだ写真を「時系列順」「選択順」「ランダム」から選んでスライドショーにできます。'
+            },
+            {
+                src: '182175.jpg',
+                title: 'ステップ 14: 写真の追加と前後移動',
+                desc: '「＋写真を追加」から写真を追加できます。「‹」で前の写真に戻り、「›」で次の写真に進みます（※自動でも切り替わります）。'
+            },
+            {
+                src: '182176.jpg',
+                title: 'ステップ 15: スライドショー（A / B / C）の切り替え',
+                desc: '画面最下部のボタンから、スライドショーA・B・Cの切り替えができます。'
+            },
+            {
+                src: '182177.jpg',
+                title: 'ステップ 16: 再生中の曲の表示',
+                desc: 'スライドショーB・Cでは、再生中の曲がここに表示されます。'
+            },
+            {
+                src: '182178.jpg',
+                title: 'ステップ 17: フリーBGMの再生と並び替え（スライドショーB）',
+                desc: 'スライドショーBでは、13曲のフリーBGMの中からタップで再生、左端の「≡」をドラッグで並び替えができます。'
+            },
+            {
+                src: '182179.jpg',
+                title: 'ステップ 18: 曲の削除と追加（スライドショーC）',
+                desc: 'スライドショーCでは、ゴミ箱ボタンから曲を削除したり、上限10曲まで曲の追加ができます。'
+            },
+            {
+                src: '182180.jpg',
+                title: 'ステップ 19: 曲名検索・当時のヒット曲から追加',
+                desc: '曲名から直接追加したい場合は「＋曲名で検索して追加」、当時の流行り曲から追加したい場合は「Billboard JAPAN 週間TOP10から選ぶ」を押します。'
+            },
+            {
+                src: '182184.jpg',
+                title: 'ステップ 20: Billboard JAPAN 週間TOP10の参照・追加',
+                desc: '写真の日付の週のTOP10がまず表示されます。他の週を参照したい場合は上部から選択でき、「▶試聴」「＋追加」が行えます。'
+            },
+            {
+                src: '182185.jpg',
+                title: 'ステップ 21: 履歴がない日（週）の一括追加',
+                desc: '曲の再生履歴がない日（週）は、その日（週）のBillboard JAPAN週間TOP10の曲を「TOP10を一括追加」からまとめて追加できます。'
+            },
+            {
+                src: '182186.jpg',
+                title: 'ステップ 22: 履歴がない月の一括追加',
+                desc: '曲の再生履歴がない月は、その月の各週のBillboard JAPAN TOP10から第何週かを選択し、1週間分を一括追加できます。'
+            },
+            {
+                src: '182187.jpg',
+                title: 'ステップ 23: 曲が再生されないときの外部再生',
+                desc: '無料プレビュー音源が未配信で再生されないときはこのように表示されますが、各ボタン（Spotify / Apple Music / YouTube）から再生をお試しいただけます。'
             }
         ];
 
