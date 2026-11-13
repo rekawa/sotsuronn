@@ -120,10 +120,18 @@
                             <span class="w-5 h-5 rounded-full bg-pink-100 text-pink-600 text-xs flex items-center justify-center mr-2 font-black">2</span>
                             思い出の写真をまとめて選択
                         </h2>
-                        <p class="text-xs text-gray-500 mb-2.5 leading-relaxed">
-                            思い出の写真を複数選択してください。<br>
-                            <span class="text-[11px] text-gray-400">※何回でも追加選択できます</span>
+                        <p class="text-xs text-gray-500 mb-2 leading-relaxed">
+                            思い出の写真を複数選択してください。<span class="text-[11px] text-gray-400">（※何回でも追加選択できます）</span>
                         </p>
+
+                        <!-- カメラ撮影・スクショ限定の注意書き -->
+                        <div class="mb-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-950 leading-relaxed">
+                            <p class="font-bold text-amber-900">⚠️ カメラで撮った写真・スクショのみを選択してください</p>
+                            <p class="text-[10.5px] text-amber-800 mt-0.5">
+                                WebやSNS（LINE・Threads等）で保存した画像は、日付データがないため<strong>今日の日付</strong>として表示されてしまいます。
+                            </p>
+                        </div>
+
                         <input type="file" id="photo-files" multiple accept="image/*" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-pink-100 file:text-pink-700 hover:file:bg-pink-200 cursor-pointer">
                         <p id="photo-loading" class="text-xs text-blue-500 mt-2 font-bold hidden">写真の日時を解析中... お待ちください</p>
                         <p id="photo-status" class="text-xs text-green-600 mt-2 font-bold hidden">✓ 0枚の写真をストックしました</p>
@@ -570,49 +578,96 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 初回モード選択モーダル (実験用モード vs 自由鑑賞モード) -->
+        <!-- 初回モード選択モーダル (Step1: 利用モード選択 / Step2: 最初のスライドショー選択) -->
         <!-- ========================================== -->
         <div id="usage-mode-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm p-4">
             <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-gray-800">
-                <div class="text-center mb-5">
-                    <span class="inline-block p-3 bg-blue-100 text-blue-600 rounded-full mb-2 text-2xl font-bold">✨</span>
-                    <h3 class="text-lg font-bold text-gray-900">利用モードの選択</h3>
-                    <p class="text-xs text-gray-500 mt-1">ご利用の目的に合わせてモードを選択してください</p>
-                </div>
-                
-                <div class="space-y-3 mb-5">
-                    <!-- 実験用モード -->
-                    <button type="button" onclick="selectUsageMode('experiment')" class="w-full text-left p-4 rounded-xl border-2 border-blue-500 bg-blue-50/50 hover:bg-blue-50 transition active:scale-[0.99] flex flex-col cursor-pointer group shadow-xs">
-                        <div class="flex items-center justify-between mb-1.5">
-                            <span class="font-bold text-sm text-blue-900 flex items-center">
-                                🧪 実験用モード
-                                <span class="ml-2 text-[10px] bg-blue-600 text-white font-bold px-2 py-0.5 rounded-full">被験者の方</span>
-                            </span>
-                            <span class="text-blue-600 text-xs font-bold group-hover:translate-x-0.5 transition-transform">選択 ›</span>
-                        </div>
-                        <p class="text-xs text-gray-600 leading-relaxed">
-                            研究実験に参加される被験者の方はこちら。案内された順序で各スライドショーを鑑賞し、切り替えごとにアンケートに回答します（※順序効果防止のため、前のスライドショーには戻れません）。
-                        </p>
-                    </button>
+                <!-- Step 1: 実験用モード vs 自由鑑賞モード -->
+                <div id="usage-mode-step-1">
+                    <div class="text-center mb-5">
+                        <span class="inline-block p-3 bg-blue-100 text-blue-600 rounded-full mb-2 text-2xl font-bold">✨</span>
+                        <h3 class="text-lg font-bold text-gray-900">利用モードの選択</h3>
+                        <p class="text-xs text-gray-500 mt-1">ご利用の目的に合わせてモードを選択してください</p>
+                    </div>
+                    
+                    <div class="space-y-3 mb-5">
+                        <!-- 実験用モード -->
+                        <button type="button" onclick="selectUsageMode('experiment')" class="w-full text-left p-4 rounded-xl border-2 border-blue-500 bg-blue-50/50 hover:bg-blue-50 transition active:scale-[0.99] flex flex-col cursor-pointer group shadow-xs">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="font-bold text-sm text-blue-900 flex items-center">
+                                    🧪 実験用モード
+                                    <span class="ml-2 text-[10px] bg-blue-600 text-white font-bold px-2 py-0.5 rounded-full">被験者の方</span>
+                                </span>
+                                <span class="text-blue-600 text-xs font-bold group-hover:translate-x-0.5 transition-transform">次へ ›</span>
+                            </div>
+                            <p class="text-xs text-gray-600 leading-relaxed">
+                                研究実験に参加される被験者の方はこちら。次に「最初に鑑賞するスライドショー（A / B / C）」を選択して開始します（※順序効果防止のため、鑑賞済みのスライドショーには戻れません）。
+                            </p>
+                        </button>
 
-                    <!-- 自由鑑賞モード -->
-                    <button type="button" onclick="selectUsageMode('free')" class="w-full text-left p-4 rounded-xl border border-gray-300 hover:border-gray-400 bg-white hover:bg-gray-50 transition active:scale-[0.99] flex flex-col cursor-pointer group shadow-xs">
-                        <div class="flex items-center justify-between mb-1.5">
-                            <span class="font-bold text-sm text-gray-800 flex items-center">
-                                🎵 自由鑑賞モード
-                                <span class="ml-2 text-[10px] bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded-full">一般・作者用</span>
-                            </span>
-                            <span class="text-gray-500 text-xs font-bold group-hover:translate-x-0.5 transition-transform">選択 ›</span>
-                        </div>
-                        <p class="text-xs text-gray-600 leading-relaxed">
-                            制限なくすべてのスライドショー（A / B / C）を自由に行き来して鑑賞できます。通常の思い出振り返りや実験後の復習用です。
-                        </p>
-                    </button>
+                        <!-- 自由鑑賞モード -->
+                        <button type="button" onclick="selectUsageMode('free')" class="w-full text-left p-4 rounded-xl border border-gray-300 hover:border-gray-400 bg-white hover:bg-gray-50 transition active:scale-[0.99] flex flex-col cursor-pointer group shadow-xs">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="font-bold text-sm text-gray-800 flex items-center">
+                                    🎵 自由鑑賞モード
+                                    <span class="ml-2 text-[10px] bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded-full">一般・作者用</span>
+                                </span>
+                                <span class="text-gray-500 text-xs font-bold group-hover:translate-x-0.5 transition-transform">選択 ›</span>
+                            </div>
+                            <p class="text-xs text-gray-600 leading-relaxed">
+                                制限なくすべてのスライドショー（A / B / C）を自由に行き来して鑑賞できます。通常の思い出振り返りや実験後の復習用です。
+                            </p>
+                        </button>
+                    </div>
+
+                    <p class="text-[11px] text-gray-400 text-center">
+                        ※画面右上の ⚙（設定）からいつでもモードを切り替えられます
+                    </p>
                 </div>
 
-                <p class="text-[11px] text-gray-400 text-center">
-                    ※画面右上の ⚙（設定）からいつでもモードを切り替えられます
-                </p>
+                <!-- Step 2: 実験用モードで最初に鑑賞するスライドショーの選択 -->
+                <div id="usage-mode-step-2" class="hidden">
+                    <div class="text-center mb-4">
+                        <span class="inline-block p-3 bg-blue-100 text-blue-600 rounded-full mb-2 text-2xl font-bold">🧪</span>
+                        <h3 class="text-base font-bold text-gray-900">最初に鑑賞するスライドショーを選択</h3>
+                        <p class="text-xs text-gray-600 mt-1 leading-relaxed">
+                            案内された<strong>1番目に鑑賞するスライドショー</strong>を選んでください
+                        </p>
+                    </div>
+
+                    <div class="space-y-2.5 mb-4">
+                        <!-- スライドショーA -->
+                        <button type="button" onclick="selectInitialExperimentSlideshow('none')" class="w-full text-left p-3.5 rounded-xl border-2 border-gray-200 hover:border-blue-500 bg-white hover:bg-blue-50/40 transition active:scale-[0.99] flex items-center justify-between cursor-pointer group shadow-2xs">
+                            <div>
+                                <div class="font-bold text-sm text-gray-900 group-hover:text-blue-900">スライドショーA <span class="text-xs font-semibold text-gray-500">(BGMなし)</span></div>
+                                <p class="text-[11px] text-gray-500 mt-0.5">音楽を流さず、写真のみで静かに振り返るモード</p>
+                            </div>
+                            <span class="text-blue-600 text-xs font-bold ml-2 whitespace-nowrap group-hover:translate-x-0.5 transition-transform">これから始める ›</span>
+                        </button>
+
+                        <!-- スライドショーB -->
+                        <button type="button" onclick="selectInitialExperimentSlideshow('free')" class="w-full text-left p-3.5 rounded-xl border-2 border-gray-200 hover:border-blue-500 bg-white hover:bg-blue-50/40 transition active:scale-[0.99] flex items-center justify-between cursor-pointer group shadow-2xs">
+                            <div>
+                                <div class="font-bold text-sm text-gray-900 group-hover:text-blue-900">スライドショーB <span class="text-xs font-semibold text-gray-500">(フリーBGM)</span></div>
+                                <p class="text-[11px] text-gray-500 mt-0.5">心地よいフリーBGMとともに写真を振り返るモード</p>
+                            </div>
+                            <span class="text-blue-600 text-xs font-bold ml-2 whitespace-nowrap group-hover:translate-x-0.5 transition-transform">これから始める ›</span>
+                        </button>
+
+                        <!-- スライドショーC -->
+                        <button type="button" onclick="selectInitialExperimentSlideshow('memory')" class="w-full text-left p-3.5 rounded-xl border-2 border-gray-200 hover:border-blue-500 bg-white hover:bg-blue-50/40 transition active:scale-[0.99] flex items-center justify-between cursor-pointer group shadow-2xs">
+                            <div>
+                                <div class="font-bold text-sm text-gray-900 group-hover:text-blue-900">スライドショーC <span class="text-xs font-semibold text-gray-500">(思い出音楽プレーヤー)</span></div>
+                                <p class="text-[11px] text-gray-500 mt-0.5">写真の日時と同期した当時の音楽とともに振り返るモード</p>
+                            </div>
+                            <span class="text-blue-600 text-xs font-bold ml-2 whitespace-nowrap group-hover:translate-x-0.5 transition-transform">これから始める ›</span>
+                        </button>
+                    </div>
+
+                    <button type="button" onclick="backToUsageModeStep1()" class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold text-xs rounded-xl transition cursor-pointer">
+                        ‹ 利用モードの選択に戻る
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -648,7 +703,7 @@
     </div>
 
     <!-- スライドショー切り替えフッター（画面最下部） -->
-    <footer id="experiment-mode-bar" class="w-full bg-gray-900 border-t border-gray-800 text-white px-3 py-3 mt-8">
+    <footer id="experiment-mode-bar" class="w-full bg-gray-900 border-t border-gray-800 text-white px-2.5 py-3 mt-8">
         <div class="max-w-md mx-auto flex flex-col items-center gap-2 text-center">
             <div class="flex items-center justify-between w-full px-1 text-xs">
                 <div class="flex items-center space-x-1.5 truncate">
@@ -657,15 +712,18 @@
                 </div>
                 <span id="footer-usage-mode-badge" class="flex-shrink-0 text-[10px] bg-blue-900/70 border border-blue-500/50 text-blue-300 font-bold px-2 py-0.5 rounded-full">🧪 実験用モード</span>
             </div>
-            <div class="flex flex-wrap sm:flex-nowrap justify-center gap-2 w-full text-xs">
-                <button id="mode-btn-none" onclick="switchAppMode('none')" class="mode-switch-btn flex-1 min-w-[110px] px-2.5 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-xs text-center">
-                    スライドショーA (BGMなし)
+            <div class="grid grid-cols-3 gap-1.5 w-full text-xs">
+                <button id="mode-btn-none" onclick="switchAppMode('none')" class="mode-switch-btn px-1 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-center">
+                    <span class="block text-[11px] sm:text-xs leading-tight whitespace-nowrap">スライドショーA</span>
+                    <span class="block text-[9px] sm:text-[10px] text-gray-400 tracking-tighter leading-tight mt-0.5 whitespace-nowrap">(BGMなし)</span>
                 </button>
-                <button id="mode-btn-free" onclick="switchAppMode('free')" class="mode-switch-btn flex-1 min-w-[110px] px-2.5 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-xs text-center">
-                    スライドショーB (フリーBGM)
+                <button id="mode-btn-free" onclick="switchAppMode('free')" class="mode-switch-btn px-1 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-center">
+                    <span class="block text-[11px] sm:text-xs leading-tight whitespace-nowrap">スライドショーB</span>
+                    <span class="block text-[9px] sm:text-[10px] text-gray-400 tracking-tighter leading-tight mt-0.5 whitespace-nowrap">(フリーBGM)</span>
                 </button>
-                <button id="mode-btn-memory" onclick="switchAppMode('memory')" class="mode-switch-btn flex-1 min-w-[110px] px-2.5 py-2 font-bold rounded-lg transition active:scale-95 bg-blue-600 text-white border-2 border-blue-400 shadow-md ring-2 ring-blue-500/30 cursor-pointer text-xs text-center">
-                    スライドショーC (思い出音楽プレーヤー)
+                <button id="mode-btn-memory" onclick="switchAppMode('memory')" class="mode-switch-btn px-1 py-2 font-bold rounded-lg transition active:scale-95 bg-blue-600 text-white border-2 border-blue-400 shadow-md ring-2 ring-blue-500/30 cursor-pointer text-center">
+                    <span class="block text-[11px] sm:text-xs leading-tight whitespace-nowrap">スライドショーC</span>
+                    <span class="block text-[9px] sm:text-[10px] opacity-90 tracking-tighter leading-tight mt-0.5 whitespace-nowrap">(思い出音楽プレーヤー)</span>
                 </button>
             </div>
         </div>
@@ -877,8 +935,11 @@
         function initAppMode() {
             try {
                 const savedUsage = localStorage.getItem('study_usage_mode');
-                if (savedUsage === 'experiment' || savedUsage === 'free') {
-                    appUsageMode = savedUsage;
+                const hasSelectedInitial = localStorage.getItem('study_initial_slideshow_selected') === '1';
+                if (savedUsage === 'free') {
+                    appUsageMode = 'free';
+                } else if (savedUsage === 'experiment' && hasSelectedInitial) {
+                    appUsageMode = 'experiment';
                 } else {
                     appUsageMode = null; // 初回モーダル表示
                 }
@@ -912,13 +973,29 @@
 
             // 初回アクセス時（利用モード未設定）は選択モーダルを表示
             if (!appUsageMode) {
-                openUsageModeModal();
+                openUsageModeModal(1);
             }
         }
 
-        function openUsageModeModal() {
+        function openUsageModeModal(step = 1) {
             const modal = document.getElementById('usage-mode-modal');
+            const step1 = document.getElementById('usage-mode-step-1');
+            const step2 = document.getElementById('usage-mode-step-2');
+            if (step === 2) {
+                if (step1) step1.classList.add('hidden');
+                if (step2) step2.classList.remove('hidden');
+            } else {
+                if (step1) step1.classList.remove('hidden');
+                if (step2) step2.classList.add('hidden');
+            }
             if (modal) modal.classList.remove('hidden');
+        }
+
+        function backToUsageModeStep1() {
+            const step1 = document.getElementById('usage-mode-step-1');
+            const step2 = document.getElementById('usage-mode-step-2');
+            if (step2) step2.classList.add('hidden');
+            if (step1) step1.classList.remove('hidden');
         }
 
         function closeUsageModeModal() {
@@ -927,30 +1004,62 @@
         }
 
         function selectUsageMode(mode) {
-            appUsageMode = (mode === 'free') ? 'free' : 'experiment';
+            if (mode === 'free') {
+                appUsageMode = 'free';
+                try {
+                    localStorage.setItem('study_usage_mode', 'free');
+                } catch(e) {}
+
+                closeUsageModeModal();
+                updateUsageModeUI();
+                updateModeSwitchBarUI();
+                showToast('🎵 自由鑑賞モードを開始しました');
+            } else {
+                // 実験用モードを選択した場合は、Step 2（最初に鑑賞するスライドショーA/B/Cの選択）へ進む
+                openUsageModeModal(2);
+            }
+        }
+
+        function selectInitialExperimentSlideshow(initialSlideMode) {
+            if (!['none', 'free', 'memory'].includes(initialSlideMode)) {
+                initialSlideMode = 'memory';
+            }
+            appUsageMode = 'experiment';
+            visitedSlideshows = [];
             try {
-                localStorage.setItem('study_usage_mode', appUsageMode);
+                localStorage.setItem('study_usage_mode', 'experiment');
+                localStorage.setItem('study_initial_slideshow_selected', '1');
+                localStorage.removeItem('study_visited_slideshows');
             } catch(e) {}
 
             closeUsageModeModal();
             updateUsageModeUI();
-            updateModeSwitchBarUI();
-
-            showToast(appUsageMode === 'experiment' ? '🧪 実験用モードを開始しました' : '🎵 自由鑑賞モードを開始しました');
+            executeAppModeSwitch(initialSlideMode);
+            showToast(`🧪 実験用モードを「${slideshowLabels[initialSlideMode]}」から開始しました`);
         }
 
         function toggleUsageMode() {
-            const nextMode = (appUsageMode === 'free') ? 'experiment' : 'free';
-            selectUsageMode(nextMode);
+            const settingsModal = document.getElementById('settings-modal');
+            if (appUsageMode === 'free') {
+                // 自由鑑賞モードから実験用モードに切り替える際は、最初のスライドショー選択画面を開く
+                if (settingsModal) settingsModal.classList.add('hidden');
+                openUsageModeModal(2);
+            } else {
+                selectUsageMode('free');
+            }
         }
 
         function resetExperimentProgress() {
             visitedSlideshows = [];
             try {
                 localStorage.removeItem('study_visited_slideshows');
+                localStorage.removeItem('study_initial_slideshow_selected');
             } catch(e) {}
+            const settingsModal = document.getElementById('settings-modal');
+            if (settingsModal) settingsModal.classList.add('hidden');
             updateModeSwitchBarUI();
-            showToast('🔄 実験の進行状況をリセットしました（最初から鑑賞できます）');
+            openUsageModeModal(2);
+            showToast('🔄 実験の進行状況をリセットしました。最初のスライドショーを選択してください');
         }
 
         function updateUsageModeUI() {
@@ -1101,19 +1210,19 @@
                 const isVisited = isExp && visitedSlideshows.includes(item.id);
 
                 if (isCurrent) {
-                    item.btn.className = "mode-switch-btn flex-1 min-w-[110px] px-2.5 py-2 font-bold rounded-lg transition active:scale-95 bg-blue-600 text-white border-2 border-blue-400 shadow-md ring-2 ring-blue-500/30 cursor-pointer text-xs text-center";
+                    item.btn.className = "mode-switch-btn px-1 py-2 font-bold rounded-lg transition active:scale-95 bg-blue-600 text-white border-2 border-blue-400 shadow-md ring-2 ring-blue-500/30 cursor-pointer text-center";
                     item.btn.disabled = false;
-                    item.btn.innerHTML = `${item.name} <span class="text-[10px] opacity-90 block sm:inline">(${item.desc})</span>`;
+                    item.btn.innerHTML = `<span class="block text-[11px] sm:text-xs leading-tight whitespace-nowrap">${item.name}</span><span class="block text-[9px] sm:text-[10px] opacity-90 tracking-tighter leading-tight mt-0.5 whitespace-nowrap">(${item.desc})</span>`;
                 } else if (isVisited) {
                     // 鑑賞済み（実験用モード時は戻れない）
-                    item.btn.className = "mode-switch-btn flex-1 min-w-[110px] px-2.5 py-2 font-semibold rounded-lg opacity-40 cursor-not-allowed bg-gray-900 text-gray-500 border border-gray-800 shadow-none text-xs text-center";
+                    item.btn.className = "mode-switch-btn px-1 py-2 font-semibold rounded-lg opacity-40 cursor-not-allowed bg-gray-900 text-gray-500 border border-gray-800 shadow-none text-center";
                     item.btn.disabled = true;
-                    item.btn.innerHTML = `<span class="line-through">${item.name}</span> <span class="text-[9px] text-amber-400 block sm:inline font-bold">鑑賞済</span>`;
+                    item.btn.innerHTML = `<span class="block text-[11px] sm:text-xs leading-tight line-through whitespace-nowrap">${item.name}</span><span class="block text-[9px] sm:text-[10px] text-amber-400 font-bold leading-tight mt-0.5 whitespace-nowrap">鑑賞済</span>`;
                 } else {
                     // 未鑑賞（または自由鑑賞モード）
-                    item.btn.className = "mode-switch-btn flex-1 min-w-[110px] px-2.5 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-xs text-center";
+                    item.btn.className = "mode-switch-btn px-1 py-2 font-semibold rounded-lg transition active:scale-95 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 shadow-xs cursor-pointer text-center";
                     item.btn.disabled = false;
-                    item.btn.innerHTML = `${item.name} <span class="text-[10px] text-gray-400 block sm:inline">(${item.desc})</span>`;
+                    item.btn.innerHTML = `<span class="block text-[11px] sm:text-xs leading-tight whitespace-nowrap">${item.name}</span><span class="block text-[9px] sm:text-[10px] text-gray-400 tracking-tighter leading-tight mt-0.5 whitespace-nowrap">(${item.desc})</span>`;
                 }
             });
 
