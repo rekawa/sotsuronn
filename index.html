@@ -1587,10 +1587,12 @@
                 .trim();
         }
 
-        // コラボ相手の分割 (スペース単体では分割しない！)
+        // コラボ相手・別名表記の分割 (スペース単体では分割しない！)
         function extractSubArtists(artistStr) {
             if (!artistStr) return [];
-            const parts = artistStr.split(/[\/,，、×&＆+]|\s+(?:feat|featuring|with|prod|x|vs)\.?\s+/i)
+            const normalized = String(artistStr).normalize('NFKC');
+            const parts = normalized
+                .split(/[\/,，、×&＆+\(\)（）]|(?:\s+|(?<=[^\x00-\x7F]))(?:feat|featuring|ft|with|prod|x|vs)\.?(?:\s+|(?=[^\x00-\x7F]))/i)
                 .map(p => p.trim())
                 .filter(p => p.length > 0);
             return [...new Set(parts)];
@@ -1619,14 +1621,123 @@
 
         function normalizeStr(s) {
             if (!s) return '';
-            let res = normalizeKanji(String(s));
+            // NFKCで全角英数・半角カナを統一し、NFD->NFCで欧文アクセント記号(é, ñ, ö, å等)のみを除去しつつ日本語濁点を維持
+            let res = normalizeKanji(String(s).normalize('NFKC'));
+            res = res.normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC');
             return res
                 .toLowerCase()
-                .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+                .replace(/\band\b/g, '')
+                .replace(/ヴァ/g, 'バ').replace(/ヴィ/g, 'ビ').replace(/ヴェ/g, 'ベ').replace(/ヴォ/g, 'ボ').replace(/ヴュ/g, 'ビュ').replace(/ヴ/g, 'ブ')
                 .replace(/[\u30a1-\u30f6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60)) // カタカナ->ひらがな
-                .replace(/を/g, 'お') // "を"と"お"の揺らぎ統一 (ナナヲアカリ -> ななをあかり -> ななおあかり)
+                .replace(/ゔぁ/g, 'ば').replace(/ゔぃ/g, 'び').replace(/ゔぇ/g, 'べ').replace(/ゔぉ/g, 'ぼ').replace(/ゔゅ/g, 'びゅ').replace(/ゔ/g, 'ぶ')
+                .replace(/[ぁぃぅぇぉ]/g, ch => ({ 'ぁ': 'あ', 'ぃ': 'い', 'ぅ': 'う', 'ぇ': 'え', 'ぉ': 'お' }[ch] || ch))
+                .replace(/を/g, 'お') // "を"と"お"の揺らぎ統一
                 .replace(/[ー〜～]/g, '') // 長音符の揺らぎ統一
                 .replace(/['’‘"`“”:\s\-_・,，、。\(\)\[\]「」『』/／~〜\\&＆+＋!！?？.]/g, '');
+        }
+
+        // カタカナ洋楽タイトルの英単語変換辞書
+        const KATA_WORD_DICT = {
+            'ラヴ':'love','ラブ':'love','ユー':'you','ユア':'your','アイ':'i','マイ':'my','ミー':'me','ウィー':'we','アス':'us',
+            'イン':'in','オン':'on','アット':'at','バイ':'by','オブ':'of','オヴ':'of','フロム':'from','トゥ':'to','フォー':'4',
+            'ワン':'1','トゥー':'2','スリー':'3','ファイヴ':'5','ファイブ':'5','シックス':'6','セヴン':'7','セブン':'7','エイト':'8','ナイン':'9','テン':'10',
+            'ミニッツ':'minutes','ミニット':'minute','セカンズ':'seconds','デイズ':'days','ナイツ':'nights','ナイト':'night','デイ':'day',
+            'ザ':'the','ジ':'the','ア':'a','アン':'an','ウィズ':'with','ウィズアウト':'without','アンド':'and','オア':'or','バット':'but',
+            'キャント':'cant','ドント':'dont','ウォント':'want','イッツ':'its','アイム':'im','イフ':'if','ホエン':'when','ウェン':'when',
+            'ホエア':'where','ウェア':'where','ホワイ':'why','ハウ':'how','フー':'who','ホワット':'what','ワット':'what',
+            'ガール':'girl','ガールズ':'girls','ボーイ':'boy','ボーイズ':'boys','マン':'man','ウーマン':'woman',
+            'ワールド':'world','ライフ':'life','ハート':'heart','ドリーム':'dream','ソング':'song','タイム':'time','ウェイ':'way',
+            'シェイプ':'shape','バッド':'bad','ガイ':'guy','グッド':'good','ニュー':'new','オール':'all','モア':'more','ノー':'no','ノット':'not',
+            'バック':'back','ゴー':'go','カム':'come','ヒア':'here','ゼア':'there','ナウ':'now','アゲイン':'again','ネヴァー':'never','ネバー':'never',
+            'チェイシング':'chasing','ペイヴメンツ':'pavements','ブリーディング':'bleeding','ディス':'this','ザット':'that','クラブ':'club',
+            'タッチ':'touch','ボディ':'body','ウェイト':'wait','マイルズ':'miles','アウェイ':'away','ネクスト':'next','プレイン':'plane',
+            'ホーム':'home','ムーヴド':'moved','ビー':'be','ワー':'were','ミス':'miss','インディペンデント':'independent','ストーリー':'story',
+            'アップタウン':'uptown','ファンク':'funk','キス':'kiss','コール':'call','メイビー':'maybe','ロマンス':'romance','ダンス':'dance',
+            'パーティー':'party','ロック':'rock','ロール':'roll','ブルース':'blues','レディ':'lady','ベイビー':'baby','スター':'star',
+            'サン':'sun','ムーン':'moon','レイン':'rain','スカイ':'sky','ファイア':'fire','ファイアー':'fire','ライト':'light'
+        };
+
+        function katakanaToEnglishHint(str) {
+            if (!str) return '';
+            const tokens = String(str).normalize('NFKC').split(/[・\s　\-〜～\/／\(\)（）!！?？]+/).filter(Boolean);
+            let replacedCount = 0;
+            const out = tokens.map(t => {
+                if (KATA_WORD_DICT[t]) {
+                    replacedCount++;
+                    return KATA_WORD_DICT[t];
+                }
+                return t;
+            });
+            return replacedCount > 0 ? out.join(' ') : '';
+        }
+
+        // 日英カタカナ・英語間の子音骨格(Phonetic Skeleton)抽出と類似度判定
+        function toPhoneticSkeleton(str) {
+            if (!str) return '';
+            const kataToRomaji = {
+                'キャ':'kya','キュ':'kyu','キョ':'kyo','シャ':'sha','シュ':'shu','ショ':'sho','チャ':'cha','チュ':'chu','チョ':'cho',
+                'ニャ':'nya','ニュ':'nyu','ニョ':'nyo','ヒャ':'hya','ヒュ':'hyu','ヒョ':'hyo','ミャ':'mya','ミュ':'myu','ミョ':'myo',
+                'リャ':'rya','リュ':'ryu','リョ':'ryo','ギャ':'gya','ギュ':'gyu','ギョ':'gyo','ジャ':'ja','ジュ':'ju','ジョ':'jo',
+                'ビャ':'bya','ビュ':'byu','ビョ':'byo','ピャ':'pya','ピュ':'pyu','ピョ':'pyo',
+                'ファ':'fa','フィ':'fi','フェ':'fe','フォ':'fo','フュ':'fyu',
+                'ヴァ':'ba','ヴィ':'bi','ヴェ':'be','ヴォ':'bo','ヴュ':'byu','ヴ':'bu',
+                'ティ':'ti','ディ':'di','トゥ':'tu','ドゥ':'du','ウィ':'wi','ウェ':'we','ウォ':'wo','チェ':'che','シェ':'she','ジェ':'je',
+                'ア':'a','イ':'i','ウ':'u','エ':'e','オ':'o',
+                'カ':'ka','キ':'ki','ク':'ku','ケ':'ke','コ':'ko',
+                'サ':'sa','シ':'si','ス':'su','セ':'se','ソ':'so',
+                'タ':'ta','チ':'ti','ツ':'tsu','テ':'te','ト':'to',
+                'ナ':'na','ニ':'ni','ヌ':'nu','ネ':'ne','ノ':'no',
+                'ハ':'ha','ヒ':'hi','フ':'fu','ヘ':'he','ホ':'ho',
+                'マ':'ma','ミ':'mi','ム':'mu','メ':'me','モ':'mo',
+                'ヤ':'ya','ユ':'yu','ヨ':'yo',
+                'ラ':'ra','リ':'ri','ル':'ru','レ':'re','ロ':'ro',
+                'ワ':'wa','ヲ':'o','ン':'n',
+                'ガ':'ga','ギ':'gi','グ':'gu','ゲ':'ge','ゴ':'go',
+                'ザ':'za','ジ':'zi','ズ':'zu','ゼ':'ze','ゾ':'zo',
+                'ダ':'da','ヂ':'di','ヅ':'du','デ':'de','ド':'do',
+                'バ':'ba','ビ':'bi','ブ':'bu','ベ':'be','ボ':'bo',
+                'パ':'pa','ピ':'pi','プ':'pu','ペ':'pe','ポ':'po',
+                'ッ':'','ー':''
+            };
+            let s = String(str).normalize('NFKC').toLowerCase()
+                .replace(/[\u3041-\u3096]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0x60)) // ひらがな->カタカナ
+                .replace(/\b4\b/g, 'fo').replace(/\b2\b/g, 'tu').replace(/\b1\b/g, 'wan').replace(/\b7\b/g, 'sebun')
+                .replace(/\bwho\b/g, 'fu').replace(/\bof\b/g, 'ob');
+            const keys = Object.keys(kataToRomaji).sort((a, b) => b.length - a.length);
+            for (const k of keys) s = s.split(k).join(kataToRomaji[k]);
+            s = s.replace(/([aeiou])r(?=[bcdfghjklmnpqrstvwxz]|\b|$)/g, '$1')
+                .replace(/tch/g, 't').replace(/ch/g, 't').replace(/sh/g, 's').replace(/th/g, 's').replace(/ph/g, 'f').replace(/wh/g, 'w')
+                .replace(/ck/g, 'k').replace(/qu/g, 'k').replace(/x/g, 'ks').replace(/ts/g, 's').replace(/dz/g, 's')
+                .replace(/[l]/g, 'r').replace(/[v]/g, 'b').replace(/[z]/g, 's').replace(/[j]/g, 's')
+                .replace(/[g]/g, 'k').replace(/[d]/g, 't').replace(/[p]/g, 'b').replace(/[h]/g, 'f')
+                .replace(/c(?=[eiy])/g, 's').replace(/c/g, 'k')
+                .replace(/[aeiouy\W_0-9]/g, '')
+                .replace(/(.)\1+/g, '$1');
+            return s;
+        }
+
+        function isPhoneticMatched(strA, strB) {
+            const pA = toPhoneticSkeleton(strA);
+            const pB = toPhoneticSkeleton(strB);
+            if (!pA || !pB || pA.length < 2 || pB.length < 2) return false;
+            if (pA === pB) return true;
+            if (Math.min(pA.length, pB.length) >= 4 && (pA.includes(pB) || pB.includes(pA))) return true;
+            // 編集距離1以内（4文字以上）または編集距離2以内（7文字以上）を許容
+            const m = pA.length, n = pB.length;
+            if (Math.abs(m - n) > 2) return false;
+            const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+            for (let i = 0; i <= m; i++) dp[i][0] = i;
+            for (let j = 0; j <= n; j++) dp[0][j] = j;
+            for (let i = 1; i <= m; i++) {
+                for (let j = 1; j <= n; j++) {
+                    dp[i][j] = (pA[i - 1] === pB[j - 1])
+                        ? dp[i - 1][j - 1]
+                        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+                }
+            }
+            const dist = dp[m][n];
+            const minLen = Math.min(m, n);
+            return (minLen >= 3 && dist <= 1) || (minLen >= 7 && dist <= 2);
         }
 
         // 主要アーティストの英語・日本語表記エイリアス辞書 (normalizeStrキーと値にマップ)
@@ -1713,7 +1824,7 @@
             "sha":"しゃ","shu":"しゅ","sho":"しょ","shi":"し",
             "cha":"ちゃ","chu":"ちゅ","cho":"ちょ","chi":"ち",
             "nya":"にゃ","nyu":"にゅ","nyo":"にょ",
-            "hya":"ひゃ","hyu":"ひゅ","hyo":"ひょ",
+            "hya":"ひゃ","hyu":"hyo","hyo":"ひょ",
             "mya":"みゃ","myu":"みゅ","myo":"みょ",
             "rya":"りゃ","ryu":"りゅ","ryo":"りょ",
             "gya":"ぎゃ","gyu":"ぎゅ","gyo":"ぎょ",
@@ -1754,7 +1865,12 @@
             if (sArtist.includes(normTargetArtist) || normTargetArtist.includes(sArtist)) return true;
 
             // サブアーティスト(コラボ相手)のいずれかとの一致
-            if (subArtistsNormList && subArtistsNormList.some(sub => sArtist === sub || sArtist.includes(sub) || sub.includes(sArtist))) {
+            if (subArtistsNormList && subArtistsNormList.some(sub => sArtist === sub || sArtist.includes(sub) || sub.includes(sArtist) || isPhoneticMatched(sArtist, sub))) {
+                return true;
+            }
+
+            // 子音骨格(Phonetic Skeleton)による日英カタカナ・英語アーティスト名一致 (例: Sabrina Carpenter <-> サブリナ・カーペンター)
+            if (isPhoneticMatched(sArtist, normTargetArtist)) {
                 return true;
             }
 
@@ -3218,7 +3334,7 @@
         }
 
         // ==========================================
-        // 9. iTunes API 公式音源マッチング (包括的強化エンジン)
+        // 9. iTunes API 公式音源マッチング (日米デュアルストア + 邦題/カタカナ/英語クロス照合エンジン)
         // ==========================================
         async function fetchExactPreviewUrl(targetTrack, targetArtist) {
             if (!targetTrack) return null;
@@ -3232,67 +3348,87 @@
             const normTargetTrack = normalizeStr(cleanT);
             const normRawTrack = normalizeStr(targetTrack);
 
-            // ノイズ除去: アルバム名(collectionName)ではなく、トラック名のみを検証する！
-            const noiseWords = ['karaoke', 'bgm', 'acoustic cover', 'インスト', 'originally performed', 'music box', 'オルゴール'];
+            // 波ダッシュ「〜」以降のサブタイトル（例: 「うごかぬ想い〜ザ・マン・フー・キャント・ビー・ムーヴド」）も抽出
+            const tildeParts = String(targetTrack).split(/[〜～]/).map(s => cleanSongTitle(s)).filter(Boolean);
+            const tildeSubTitle = (tildeParts.length > 1) ? tildeParts[tildeParts.length - 1] : '';
+            const normTildeSubTitle = normalizeStr(tildeSubTitle);
 
-            // 複数の検索クエリバリエーション
-            const queries = [
-                `${cleanT} ${targetArtist}`.trim(),
-                `${targetArtist} ${cleanT}`.trim(),
-                `${cleanT} ${primaryArtist}`.trim(),
-                `${cleanT}`.trim() // 曲名単体クエリ (アーティスト別名表記やコラボの確実な取得)
+            // カタカナ洋楽タイトルの英訳ヒント生成 (例: 「フォー・ミニッツ」 -> "4 minutes")
+            const enHintTitle = katakanaToEnglishHint(cleanT);
+            const normEnHintTitle = normalizeStr(enHintTitle);
+            const enHintSubTitle = tildeSubTitle ? katakanaToEnglishHint(tildeSubTitle) : '';
+            const normEnHintSubTitle = normalizeStr(enHintSubTitle);
+
+            const hasJpChar = str => /[\u3040-\u30ff\u4e00-\u9faf]/.test(str || '');
+            const hasLatinChar = str => /[a-zA-Z]/.test(str || '');
+
+            // ノイズ除去: アルバム名(collectionName)ではなく、トラック名のみを検証する！
+            const noiseWords = ['karaoke', 'bgm', 'acoustic cover', 'インスト', 'originally performed', 'music box', 'オルゴール', 'tribute to', 'made famous by'];
+
+            // 複数の検索クエリバリエーション ({ q, isCombined })
+            const queryObjects = [
+                { q: `${cleanT} ${primaryArtist}`.trim(), isCombined: !!primaryArtist },
+                { q: `${cleanT} ${targetArtist}`.trim(), isCombined: !!targetArtist },
+                { q: `${targetArtist} ${cleanT}`.trim(), isCombined: !!targetArtist }
             ];
 
             // エイリアスが存在する場合はエイリアス検索もクエリに追加
-            const alias = RAW_ARTIST_ALIASES[targetArtist.toLowerCase()] || RAW_ARTIST_ALIASES[normTargetArtist];
+            const alias = RAW_ARTIST_ALIASES[(targetArtist || '').toLowerCase()] || RAW_ARTIST_ALIASES[normTargetArtist] || RAW_ARTIST_ALIASES[(primaryArtist || '').toLowerCase()];
             if (alias) {
-                queries.splice(1, 0, `${cleanT} ${alias}`.trim());
+                queryObjects.splice(1, 0, { q: `${cleanT} ${alias}`.trim(), isCombined: true });
+            }
+
+            // カタカナ洋楽タイトルの英語変換クエリを追加
+            if (enHintTitle && enHintTitle !== cleanT) {
+                queryObjects.push({ q: `${enHintTitle} ${alias || primaryArtist}`.trim(), isCombined: true });
+            }
+            if (tildeSubTitle) {
+                queryObjects.push({ q: `${tildeSubTitle} ${alias || primaryArtist}`.trim(), isCombined: true });
+                if (enHintSubTitle) {
+                    queryObjects.push({ q: `${enHintSubTitle} ${alias || primaryArtist}`.trim(), isCombined: true });
+                }
             }
 
             // 姓名逆転クエリの追加 (SUDA MASAKI -> さよならエレジー MASAKI SUDA)
-            const parts = targetArtist.trim().split(/\s+/).filter(Boolean);
+            const parts = (targetArtist || '').trim().split(/\s+/).filter(Boolean);
             if (parts.length === 2) {
-                queries.push(`${cleanT} ${parts[1]} ${parts[0]}`.trim());
+                queryObjects.push({ q: `${cleanT} ${parts[1]} ${parts[0]}`.trim(), isCombined: true });
             }
 
-            const uniqueQueries = [...new Set(queries.filter(q => q && q.length >= 1))];
+            // 曲名単体クエリ (アーティスト別名表記やコラボの確実な取得)
+            queryObjects.push({ q: `${cleanT}`.trim(), isCombined: false });
 
-            function evaluateCandidate(song, rank) {
+            const seenQ = new Set();
+            const uniqueQueryObjects = queryObjects.filter(item => {
+                if (!item.q || item.q.length < 1 || seenQ.has(item.q)) return false;
+                seenQ.add(item.q);
+                return true;
+            });
+
+            function evaluateCandidate(song, rank, options = {}) {
                 if (!song.previewUrl) return null;
 
-                const trackTitleLower = song.trackName.toLowerCase();
-                const isNoise = noiseWords.some(w => trackTitleLower.includes(w));
+                const trackTitleLower = (song.trackName || '').toLowerCase();
+                const artistNameLower = (song.artistName || '').toLowerCase();
+                const isNoise = noiseWords.some(w => trackTitleLower.includes(w) || artistNameLower.includes(w));
                 if (isNoise && !targetTrack.toLowerCase().includes('cover') && !targetTrack.toLowerCase().includes('オルゴール')) {
                     return null;
                 }
 
                 const sArtist = normalizeStr(song.artistName);
-                const sCleanTrack = normalizeStr(cleanSongTitle(song.trackName));
+                const sCleanRaw = cleanSongTitle(song.trackName);
+                const sCleanTrack = normalizeStr(sCleanRaw);
                 const sRawTrack = normalizeStr(song.trackName);
                 const sMainTitle = normalizeStr(song.trackName.split(/\s*[-–—〜～]\s*/)[0]);
                 const targetMainTitle = normalizeStr(targetTrack.split(/\s*[-–—〜～]\s*/)[0]);
 
-                // 1. 曲名照合 (重要ガード: 曲名不一致は絶対に除外)
-                let titleScore = 0;
-                if (sCleanTrack === normTargetTrack || sRawTrack === normRawTrack || sMainTitle === normTargetTrack || sMainTitle === targetMainTitle) {
-                    titleScore = 100;
-                } else if (normTargetTrack.length >= 2 && (sCleanTrack.includes(normTargetTrack) || normTargetTrack.includes(sCleanTrack))) {
-                    titleScore = 85;
-                } else if (normRawTrack.length >= 2 && (sRawTrack.includes(normTargetTrack) || normTargetTrack.includes(sRawTrack))) {
-                    titleScore = 80;
-                } else if (normTargetTrack.length === 1 && (sCleanTrack.startsWith(normTargetTrack) || sRawTrack.startsWith(normTargetTrack) || sMainTitle === normTargetTrack)) {
-                    // 1文字の曲名（例: 「烏」「糸」「炎」「虹」など）で先頭一致またはメインタイトル一致
-                    titleScore = 90;
-                }
-
-                if (titleScore === 0) {
-                    return null;
-                }
-
-                // 2. アーティスト照合
+                // 先にアーティスト一致を判定（邦題⇔原題クロス照合でも利用するため）
                 let artistScore = 0;
                 let artistMatched = false;
-                if (sArtist === normTargetArtist) {
+                if (options.trustedArtistId && song.artistId === options.trustedArtistId) {
+                    artistScore = 100;
+                    artistMatched = true;
+                } else if (sArtist === normTargetArtist) {
                     artistScore = 100;
                     artistMatched = true;
                 } else if (isArtistMatched(sArtist, normTargetArtist, subArtistsNormList, targetArtist)) {
@@ -3301,6 +3437,45 @@
                 } else if (!targetArtist) {
                     artistScore = 50;
                     artistMatched = true;
+                }
+
+                // 1. 曲名照合
+                let titleScore = 0;
+                if (sCleanTrack === normTargetTrack || sRawTrack === normRawTrack || sMainTitle === normTargetTrack || sMainTitle === targetMainTitle) {
+                    titleScore = 100;
+                } else if ((normEnHintTitle && (sCleanTrack === normEnHintTitle || sMainTitle === normEnHintTitle)) ||
+                           (normTildeSubTitle && (sCleanTrack === normTildeSubTitle || sMainTitle === normTildeSubTitle)) ||
+                           (normEnHintSubTitle && (sCleanTrack === normEnHintSubTitle || sMainTitle === normEnHintSubTitle))) {
+                    titleScore = 95;
+                } else if (normTargetTrack.length >= 2 && (sCleanTrack.includes(normTargetTrack) || normTargetTrack.includes(sCleanTrack))) {
+                    titleScore = 85;
+                } else if (normRawTrack.length >= 2 && (sRawTrack.includes(normTargetTrack) || normTargetTrack.includes(sRawTrack))) {
+                    titleScore = 80;
+                } else if (normEnHintTitle && normEnHintTitle.length >= 3 && (sCleanTrack.includes(normEnHintTitle) || normEnHintTitle.includes(sCleanTrack))) {
+                    titleScore = 85;
+                } else if (normTargetTrack.length === 1 && (sCleanTrack.startsWith(normTargetTrack) || sRawTrack.startsWith(normTargetTrack) || sMainTitle === normTargetTrack)) {
+                    titleScore = 90;
+                } else if (isPhoneticMatched(sCleanRaw, cleanT) || (tildeSubTitle && isPhoneticMatched(sCleanRaw, tildeSubTitle))) {
+                    // カタカナ表記と英語原題の発音骨格一致 (例: チェイシング・ペイヴメンツ <-> Chasing Pavements)
+                    titleScore = 85;
+                } else if (artistMatched && options.isCombinedQuery && rank < 3 &&
+                           ((hasJpChar(targetTrack) && !hasJpChar(song.trackName)) || (!hasJpChar(targetTrack) && hasJpChar(song.trackName)))) {
+                    // アーティストが完全一致しており、「曲名＋アーティスト名」複合検索の上位(rank 0〜2)に返された邦題⇔英語原題ペア (例: シェイプ・オブ・ユー <-> Shape of You)
+                    titleScore = 80;
+                }
+
+                if (titleScore === 0) {
+                    return null;
+                }
+
+                // 2. アーティストの日英スクリプト跨ぎ補完（曲名が完全一致かつ複合検索の上位で、片方が英語・片方が日本語カタカナ表記の場合）
+                if (!artistMatched && titleScore >= 85 && options.isCombinedQuery && rank < 5) {
+                    const targetIsJp = hasJpChar(targetArtist);
+                    const songIsJp = hasJpChar(song.artistName);
+                    if (targetIsJp !== songIsJp) {
+                        artistScore = 85;
+                        artistMatched = true;
+                    }
                 }
 
                 if (!artistMatched) {
@@ -3325,40 +3500,54 @@
                 };
             }
 
-            // STEP 1: Search API による通常検索
-            for (let qIdx = 0; qIdx < uniqueQueries.length; qIdx++) {
-                const q = uniqueQueries[qIdx];
-                try {
-                    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&country=JP&limit=30`;
-                    const res = await fetch(url);
-                    if (!res.ok) continue;
-                    const data = await res.json();
-                    if (!data.results || data.results.length === 0) continue;
+            async function searchStoreWithQueries(countryCode, queriesList, extraOptions = {}) {
+                for (let qIdx = 0; qIdx < queriesList.length; qIdx++) {
+                    const { q, isCombined } = queriesList[qIdx];
+                    try {
+                        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&country=${countryCode}&limit=30`;
+                        const res = await fetch(url);
+                        if (!res.ok) continue;
+                        const data = await res.json();
+                        if (!data.results || data.results.length === 0) continue;
 
-                    let candidates = [];
-                    data.results.forEach((song, rank) => {
-                        const evalRes = evaluateCandidate(song, rank);
-                        if (evalRes && evalRes.totalScore >= 155) {
-                            candidates.push(evalRes);
+                        let candidates = [];
+                        data.results.forEach((song, rank) => {
+                            const evalRes = evaluateCandidate(song, rank, { isCombinedQuery: isCombined, ...extraOptions });
+                            if (evalRes && evalRes.totalScore >= 155) {
+                                candidates.push(evalRes);
+                            }
+                        });
+
+                        if (candidates.length > 0) {
+                            candidates.sort((a, b) => b.totalScore - a.totalScore);
+                            return candidates[0].song.previewUrl;
                         }
-                    });
-
-                    if (candidates.length > 0) {
-                        candidates.sort((a, b) => b.totalScore - a.totalScore);
-                        return candidates[0].song.previewUrl;
-                    }
-                } catch (e) {}
+                    } catch (e) {}
+                }
+                return null;
             }
 
-            // STEP 2: アーティスト Lookup フォールバック (Explicit曲や最新EP収録曲、アルバム埋もれ曲の完全救済)
+            // STEP 1: 日本ストア (country=JP) での検索
+            const jpPreview = await searchStoreWithQueries('JP', uniqueQueryObjects);
+            if (jpPreview) return jpPreview;
+
+            // STEP 1.5: 海外曲・英語表記曲の場合、米国ストア (country=US) でも検索 (英語アーティスト名・原題での100%一致救済)
+            if (hasLatinChar(targetTrack) || hasLatinChar(targetArtist) || enHintTitle) {
+                const usPreview = await searchStoreWithQueries('US', uniqueQueryObjects);
+                if (usPreview) return usPreview;
+            }
+
+            // STEP 2: アーティスト ID 解決 + Lookup フォールバック (カタカナ洋楽アーティスト名 -> 公式英語アーティストID解決 & 全曲スキャン)
             if (targetArtist) {
                 try {
                     const artistQuery = alias || primaryArtist || targetArtist;
                     const artistSearchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(artistQuery)}&media=music&entity=musicArtist&country=JP&limit=5`;
                     const aRes = await fetch(artistSearchUrl);
                     const aData = await aRes.json();
-                    
-                    const artistCandidates = (aData.results || []).filter(a => 
+                    const rawArtists = aData.results || [];
+
+                    const artistCandidates = rawArtists.filter((a, idx) =>
+                        idx === 0 || // iTunesがアーティスト検索1位に返した公式アーティスト(例: "アデル" -> "Adele")を信頼
                         isArtistMatched(normalizeStr(a.artistName), normTargetArtist, subArtistsNormList, targetArtist) ||
                         (a.artistName && normTargetArtist.toLowerCase().includes(a.artistName.toLowerCase())) ||
                         (a.artistName && a.artistName.toLowerCase().includes(normTargetArtist.toLowerCase()))
@@ -3366,22 +3555,38 @@
 
                     for (const matchedArtistObj of artistCandidates) {
                         if (!matchedArtistObj.artistId) continue;
-                        const lookupUrl = `https://itunes.apple.com/lookup?id=${matchedArtistObj.artistId}&entity=song&limit=200&country=JP`;
-                        const lRes = await fetch(lookupUrl);
-                        const lData = await lRes.json();
 
-                        let lookupCandidates = [];
-                        (lData.results || []).forEach((item, rank) => {
-                            if (item.wrapperType !== 'track' || !item.previewUrl) return;
-                            const evalRes = evaluateCandidate(item, rank);
-                            if (evalRes && evalRes.titleScore >= 80) {
-                                lookupCandidates.push(evalRes);
+                        // 公式英語アーティスト名が判明した場合、そのアーティスト名＋英語ヒント曲名でピンポイント検索
+                        if (matchedArtistObj.artistName && normalizeStr(matchedArtistObj.artistName) !== normTargetArtist) {
+                            const resolvedQueries = [
+                                { q: `${enHintTitle || cleanT} ${matchedArtistObj.artistName}`.trim(), isCombined: true },
+                                { q: `${cleanT} ${matchedArtistObj.artistName}`.trim(), isCombined: true }
+                            ];
+                            const resolvedPreview = await searchStoreWithQueries('JP', resolvedQueries, { trustedArtistId: matchedArtistObj.artistId })
+                                || await searchStoreWithQueries('US', resolvedQueries, { trustedArtistId: matchedArtistObj.artistId });
+                            if (resolvedPreview) return resolvedPreview;
+                        }
+
+                        // アーティストの全代表曲 (最大200曲) から曲名・発音骨格照合
+                        for (const store of ['JP', 'US']) {
+                            const lookupUrl = `https://itunes.apple.com/lookup?id=${matchedArtistObj.artistId}&entity=song&limit=200&country=${store}`;
+                            const lRes = await fetch(lookupUrl);
+                            if (!lRes.ok) continue;
+                            const lData = await lRes.json();
+
+                            let lookupCandidates = [];
+                            (lData.results || []).forEach((item, rank) => {
+                                if (item.wrapperType !== 'track' || !item.previewUrl) return;
+                                const evalRes = evaluateCandidate(item, rank, { trustedArtistId: matchedArtistObj.artistId });
+                                if (evalRes && evalRes.titleScore >= 80) {
+                                    lookupCandidates.push(evalRes);
+                                }
+                            });
+
+                            if (lookupCandidates.length > 0) {
+                                lookupCandidates.sort((a, b) => b.totalScore - a.totalScore);
+                                return lookupCandidates[0].song.previewUrl;
                             }
-                        });
-
-                        if (lookupCandidates.length > 0) {
-                            lookupCandidates.sort((a, b) => b.totalScore - a.totalScore);
-                            return lookupCandidates[0].song.previewUrl;
                         }
                     }
                 } catch (e) {}
@@ -3909,10 +4114,17 @@
             try {
                 const songMap = new Map();
 
-                // 1. 通常楽曲検索 (エイリアス変換も組み込み)
+                // 1. 通常楽曲検索 (日米デュアルストア + エイリアス・英訳ヒント変換)
                 const searchUrls = [
-                    `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&entity=song&country=JP&limit=50`
+                    `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&entity=song&country=JP&limit=50`,
+                    `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&entity=song&country=US&limit=30`
                 ];
+
+                const enHint = katakanaToEnglishHint(term);
+                if (enHint && enHint !== term) {
+                    searchUrls.push(`https://itunes.apple.com/search?term=${encodeURIComponent(enHint)}&media=music&entity=song&country=JP&limit=30`);
+                    searchUrls.push(`https://itunes.apple.com/search?term=${encodeURIComponent(enHint)}&media=music&entity=song&country=US&limit=30`);
+                }
 
                 const words = term.split(/[\s　]+/);
                 
