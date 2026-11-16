@@ -610,7 +610,7 @@
                             <div class="flex items-center justify-between mb-1.5">
                                 <span class="font-bold text-sm text-gray-800 flex items-center">
                                     🎵 自由鑑賞モード
-                                    <span class="ml-2 text-[10px] bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded-full">一般・作者用</span>
+                                    <span class="ml-2 text-[10px] bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded-full">一般用</span>
                                 </span>
                                 <span class="text-gray-500 text-xs font-bold group-hover:translate-x-0.5 transition-transform">選択 ›</span>
                             </div>
@@ -1258,9 +1258,9 @@
             if (skipNotice && skipText) {
                 skipNotice.classList.remove('hidden');
                 if (currentAppMode === 'none') {
-                    skipText.innerHTML = "<strong>【スライドショーA選択中】</strong><br>現在のスライドショー（BGMなし）では再生履歴を使用しませんが、後ほどスライドショーCを体験する際に使用します。ここで事前に読み込んでおくと、後から写真を読み直すことなくスムーズに切り替えできます。（※今すぐ読み込まずスキップして下のステップ2へ進むことも可能です）";
+                    skipText.innerHTML = "<strong>【スライドショーA選択中】</strong><br>現在のスライドショー（BGMなし）では再生履歴を使用しませんが、後ほどスライドショーCを鑑賞する際に使用するため、<strong>この画面で先に読み込んでおいてください。</strong>";
                 } else if (currentAppMode === 'free') {
-                    skipText.innerHTML = "<strong>【スライドショーB選択中】</strong><br>現在のスライドショー（フリーBGM）では再生履歴を使用しませんが、後ほどスライドショーCを体験する際に使用します。ここで事前に読み込んでおくと、後から写真を読み直すことなくスムーズに切り替えできます。（※今すぐ読み込まずスキップして下のステップ2へ進むことも可能です）";
+                    skipText.innerHTML = "<strong>【スライドショーB選択中】</strong><br>現在のスライドショー（フリーBGM）では再生履歴を使用しませんが、後ほどスライドショーCを鑑賞する際に使用するため、<strong>この画面で先に読み込んでおいてください。</strong>";
                 } else {
                     skipText.innerHTML = "<strong>【スライドショーC選択中】</strong><br>写真の日時と同期して、あなたが当時聴いていた曲がBGMとして再生されます。ファイルを選択して読み込んでください。（※履歴がない期間でも、当時のBillboard JAPANヒット曲から自動で選曲されます）";
                 }
