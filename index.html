@@ -58,7 +58,6 @@
                             <span class="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shadow-xs">？</span>
                             <div>
                                 <p class="text-xs font-bold text-blue-900 leading-tight">初めての方へ: アプリの操作説明</p>
-                                <p class="text-[10px] text-blue-700/80">写真や履歴の読み込み手順を確認できます</p>
                             </div>
                         </div>
                         <button id="setup-open-guide-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-xs transition active:scale-95 whitespace-nowrap cursor-pointer">
@@ -68,21 +67,12 @@
 
                     <!-- ステップ1: サブスク再生履歴の読み込み -->
                     <div id="step1-streaming-card" class="mb-4 p-4 border rounded-xl bg-gray-50 shadow-sm relative">
-                        <h2 class="text-sm font-bold mb-1.5 text-gray-700 flex items-center">
+                        <h2 class="text-sm font-bold mb-2.5 text-gray-700 flex items-center">
                             <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-xs flex items-center justify-center mr-2 font-black">1</span>
                             <span id="step1-title">音楽サブスクの再生履歴を読み込む（※スライドショーCで使用）</span>
                         </h2>
-                        
-                        <!-- モード別補足案内表示 -->
-                        <div id="streaming-mode-skip-notice" class="p-2.5 bg-blue-50/70 border border-blue-200/80 rounded-xl text-xs text-blue-950 leading-relaxed mb-2.5">
-                            <span id="streaming-mode-skip-text"></span>
-                        </div>
 
                         <div id="streaming-input-area">
-                            <p class="text-xs text-gray-500 mb-2 leading-relaxed">
-                                <strong>Spotify</strong> の再生履歴ファイル (<code>.json</code>) または <strong>Apple Music</strong> の再生履歴ファイル (<code>Apple Music - Play History Daily Tracks.csv</code>) を選択してください。
-                            </p>
-
                             <input type="file" id="streaming-file" multiple accept=".json,.csv" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer">
                             <p id="streaming-loading" class="text-xs text-blue-500 mt-2 font-bold hidden">履歴ファイルを解析中... お待ちください</p>
                             
@@ -121,16 +111,8 @@
                             思い出の写真をまとめて選択
                         </h2>
                         <p class="text-xs text-gray-500 mb-2 leading-relaxed">
-                            思い出の写真を複数選択してください。<span class="text-[11px] text-gray-400">（※何回でも追加選択できます）</span>
+                            カメラ画像・スクリーンショットを選択してください。<span class="text-[11px] text-gray-400">（※何回でも追加可能）</span>
                         </p>
-
-                        <!-- カメラ撮影・スクショ限定の注意書き -->
-                        <div class="mb-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-950 leading-relaxed">
-                            <p class="font-bold text-amber-900">⚠️ ご自身の端末で撮ったカメラ画像およびスクリーンショット画像のみを読み込むようにしてください。</p>
-                            <p class="text-[10.5px] text-amber-800 mt-0.5">
-                                WebサイトやSNS、LINEなどで保存した画像だと正しく日付が読み込まれないことがあります。
-                            </p>
-                        </div>
 
                         <input type="file" id="photo-files" multiple accept="image/*" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-pink-100 file:text-pink-700 hover:file:bg-pink-200 cursor-pointer">
                         <p id="photo-loading" class="text-xs text-blue-500 mt-2 font-bold hidden">写真の日時を解析中... お待ちください</p>
@@ -140,14 +122,6 @@
                             <button id="add-more-photos-btn" type="button" class="text-xs text-pink-600 border border-pink-200 bg-white font-bold rounded-lg px-2.5 py-1.5 hover:bg-pink-50 transition active:scale-95 shadow-xs flex items-center">
                                 <span class="mr-1 text-sm font-black">＋</span> 別の写真を追加で選択する
                             </button>
-                        </div>
-
-                        <!-- プライバシー保護についての明記 -->
-                        <div class="mt-3 p-2.5 bg-blue-50/60 border border-blue-200/70 rounded-xl text-[11px] text-blue-950 leading-relaxed">
-                            <p class="font-bold text-blue-900 mb-0.5">プライバシー保護について</p>
-                            <p class="text-[10.5px] text-blue-800/90">
-                                選択された写真データはお使いの端末（ブラウザ）内でのみ一時的に処理され、外部サーバーへ送信・保存されることは一切ありません。ページを閉じたりリロードすると、写真データは安全に完全消去されます。
-                            </p>
                         </div>
 
                         <!-- 写真ストックプレビュー -->
@@ -342,10 +316,9 @@
 
                     <!-- 期間のプレイリスト（TOP10曲 / フリー音源一覧） -->
                     <div id="playlist-section">
-                        <div class="flex justify-between items-end mb-2 px-1">
+                        <div class="flex justify-between items-center mb-2 px-1">
                             <div>
                                 <h3 id="playlist-section-title" class="text-xs font-bold text-gray-700">この日のプレイリスト (TOP10)</h3>
-                                <p id="playlist-section-subtitle" class="text-[10px] text-gray-500">タップで即座に再生 <span class="text-[10px] text-blue-600 font-bold block sm:inline">※曲をドラッグして自由に曲順を並び替えられます</span></p>
                             </div>
                             <span id="playlist-count" class="text-xs text-gray-500 font-medium">0/10曲</span>
                         </div>
@@ -585,9 +558,7 @@
                 <!-- Step 1: 実験用モード vs 自由鑑賞モード -->
                 <div id="usage-mode-step-1">
                     <div class="text-center mb-5">
-                        <span class="inline-block p-3 bg-blue-100 text-blue-600 rounded-full mb-2 text-2xl font-bold">✨</span>
                         <h3 class="text-lg font-bold text-gray-900">利用モードの選択</h3>
-                        <p class="text-xs text-gray-500 mt-1">ご利用の目的に合わせてモードを選択してください</p>
                     </div>
                     
                     <div class="space-y-3 mb-5">
@@ -601,7 +572,7 @@
                                 <span class="text-blue-600 text-xs font-bold group-hover:translate-x-0.5 transition-transform">次へ ›</span>
                             </div>
                             <p class="text-xs text-gray-600 leading-relaxed">
-                                研究実験に参加される被験者の方はこちら。次に「最初に鑑賞するスライドショー（A / B / C）」を選択して開始します（※順序効果防止のため、鑑賞済みのスライドショーには戻れません）。
+                                評価実験に参加される被験者の方はこちら。次に最初に鑑賞するスライドショーを選択して開始します。
                             </p>
                         </button>
 
@@ -615,7 +586,7 @@
                                 <span class="text-gray-500 text-xs font-bold group-hover:translate-x-0.5 transition-transform">選択 ›</span>
                             </div>
                             <p class="text-xs text-gray-600 leading-relaxed">
-                                制限なくすべてのスライドショー（A / B / C）を自由に行き来して鑑賞できます。通常の思い出振り返りや実験後の復習用です。
+                                制限なくすべてのスライドショーを自由に行き来して鑑賞できます。通常の思い出振り返りや実験後の復習用です。
                             </p>
                         </button>
                     </div>
@@ -628,7 +599,6 @@
                 <!-- Step 2: 実験用モードで最初に鑑賞するスライドショーの選択 -->
                 <div id="usage-mode-step-2" class="hidden">
                     <div class="text-center mb-4">
-                        <span class="inline-block p-3 bg-blue-100 text-blue-600 rounded-full mb-2 text-2xl font-bold">🧪</span>
                         <h3 class="text-base font-bold text-gray-900">最初に鑑賞するスライドショーを選択</h3>
                         <p class="text-xs text-gray-600 mt-1 leading-relaxed">
                             案内された<strong>1番目に鑑賞するスライドショー</strong>を選んでください
@@ -1233,8 +1203,6 @@
         }
 
         function renderCurrentAppModeHome() {
-            const skipNotice = document.getElementById('streaming-mode-skip-notice');
-            const skipText = document.getElementById('streaming-mode-skip-text');
             const inputArea = document.getElementById('streaming-input-area');
             const statusArea = document.getElementById('streaming-status-area');
             const step1Title = document.getElementById('step1-title');
@@ -1252,17 +1220,6 @@
                     statusArea.classList.remove('hidden');
                 } else {
                     statusArea.classList.add('hidden');
-                }
-            }
-
-            if (skipNotice && skipText) {
-                skipNotice.classList.remove('hidden');
-                if (currentAppMode === 'none') {
-                    skipText.innerHTML = "<strong>【スライドショーA選択中】</strong><br>現在のスライドショー（BGMなし）では再生履歴を使用しませんが、後ほどスライドショーCを鑑賞する際に使用するため、<strong>この画面で先に読み込んでおいてください。</strong>";
-                } else if (currentAppMode === 'free') {
-                    skipText.innerHTML = "<strong>【スライドショーB選択中】</strong><br>現在のスライドショー（フリーBGM）では再生履歴を使用しませんが、後ほどスライドショーCを鑑賞する際に使用するため、<strong>この画面で先に読み込んでおいてください。</strong>";
-                } else {
-                    skipText.innerHTML = "<strong>【スライドショーC選択中】</strong><br>写真の日時と同期して、あなたが当時聴いていた曲がBGMとして再生されます。ファイルを選択して読み込んでください。（※履歴がない期間でも、当時のBillboard JAPANヒット曲から自動で選曲されます）";
                 }
             }
 
@@ -1363,11 +1320,9 @@
         function renderPeritunePlaylistUI() {
             const container = document.getElementById('playlist-container');
             const titleEl = document.getElementById('playlist-section-title');
-            const subtitleEl = document.getElementById('playlist-section-subtitle');
             const countEl = document.getElementById('playlist-count');
 
             if (titleEl) titleEl.innerText = 'フリーBGM一覧 (全13曲)';
-            if (subtitleEl) subtitleEl.innerHTML = 'タップで即座に再生 <span class="text-[10px] text-blue-600 font-bold block sm:inline">※曲をドラッグして自由に曲順を並び替えられます</span>';
             if (countEl) countEl.innerText = `${PERITUNE_TRACKS.length}曲`;
 
             if (!container) return;
@@ -3756,9 +3711,6 @@
             const tracks = getCurrentTracks();
             const container = document.getElementById('playlist-container');
             container.innerHTML = '';
-
-            const subtitleEl = document.getElementById('playlist-section-subtitle');
-            if (subtitleEl) subtitleEl.innerHTML = 'タップで即座に再生 <span class="text-[10px] text-blue-600 font-bold block sm:inline">※曲をドラッグして自由に曲順を並び替えられます</span>';
 
             document.getElementById('playlist-count').innerText = `${tracks.length}/10曲`;
 
