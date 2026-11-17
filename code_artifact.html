@@ -2457,6 +2457,55 @@
         // ==========================================
         // 6. 写真の解析 (完全ファイルスキャンExif - 無制限・累積追加対応)
         // ==========================================
+        // 写真をRAM内のBlobとして完全保持し、別アプリ切り替えやinputリセットでファイル参照が消えるのを100%防ぐ
+        async function ensurePhotoInMemory(file) {
+            if (!file) return null;
+            if (file._readyUrl && file._ramBlob) return file._readyUrl;
+
+            try {
+                if (!file._ramBlob) {
+                    const buf = await file.arrayBuffer();
+                    file._ramBlob = new Blob([buf], { type: file.type || 'image/jpeg' });
+                }
+            } catch (e) {
+                file._ramBlob = file;
+            }
+
+            let rawUrl = null;
+            try {
+                rawUrl = URL.createObjectURL(file._ramBlob);
+            } catch (e) {}
+
+            // PC版Chrome等でHEICがネイティブ表示できない場合のみheic2anyでJPEG Blobに変換してRAM保持
+            const isHeic = file.name && /\.(heic|heif)$/i.test(file.name);
+            if (isHeic && rawUrl) {
+                const canNative = await new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => resolve(true);
+                    img.onerror = () => resolve(false);
+                    img.src = rawUrl;
+                });
+                if (!canNative && window.heic2any) {
+                    try {
+                        let blobResult = await heic2any({ blob: file._ramBlob, toType: 'image/jpeg', quality: 0.85 });
+                        const jpegBlob = Array.isArray(blobResult) ? blobResult[0] : blobResult;
+                        if (jpegBlob) {
+                            file._ramBlob = jpegBlob;
+                            rawUrl = URL.createObjectURL(jpegBlob);
+                        }
+                    } catch (err) {
+                        console.warn("heic2any conversion error:", err);
+                    }
+                }
+            }
+
+            if (rawUrl) {
+                file._readyUrl = rawUrl;
+                photoBlobUrlCache.set(file, rawUrl);
+            }
+            return rawUrl;
+        }
+
         async function processPhotoFiles(files, isFromPlayer = false) {
             if (!files || files.length === 0) return;
 
@@ -2473,15 +2522,7 @@
                 showToast(`写真 ${files.length} 枚を解析中...`);
             }
 
-            // iOS Safari等でinput.valueクリア後にFile参照が失われるのを防ぐため、配列化＆Blob URLを即時生成
             const fileList = Array.from(files);
-            fileList.forEach(f => {
-                if (f && !f._rawBlobUrl) {
-                    try {
-                        f._rawBlobUrl = URL.createObjectURL(f);
-                    } catch (e) {}
-                }
-            });
 
             // 既存の photoDatabase を保持し、重複写真のキーを作成（前回の写真が消えないようにする）
             photoDatabase = photoDatabase || {};
@@ -2503,14 +2544,18 @@
                     continue; // 既にストック済みの同一写真はスキップ
                 }
 
+                // 1. ファイルを即座にRAM(メモリ)のBlobにコピーして表示URLを確定（別アプリ移動やinputクリアによる消失を完全防止）
+                await ensurePhotoInMemory(file);
+
+                // 2. Exifから撮影日を抽出
                 const dateKey = await extractDateFromPhoto(file);
                 if (!photoDatabase[dateKey]) photoDatabase[dateKey] = [];
                 photoDatabase[dateKey].push(file);
                 existingKeys.add(fileKey);
                 addedCount++;
 
-                if (!isFromPlayer && loadingEl && (i % 5 === 0 || i === fileList.length - 1)) {
-                    loadingEl.innerText = `写真の日時を解析中... (${i + 1}/${fileList.length}枚)`;
+                if (!isFromPlayer && loadingEl && (i % 3 === 0 || i === fileList.length - 1)) {
+                    loadingEl.innerText = `写真を読み込み中... (${i + 1}/${fileList.length}枚)`;
                 }
             }
 
@@ -2558,16 +2603,25 @@
             }
         }
 
-        document.getElementById('photo-files').addEventListener('change', async function(e) {
-            const selected = Array.from(e.target.files || []);
-            await processPhotoFiles(selected, false);
-            e.target.value = '';
-        });
+        const photoFilesInputEl = document.getElementById('photo-files');
+        if (photoFilesInputEl) {
+            photoFilesInputEl.addEventListener('click', function() {
+                this.value = '';
+            });
+            photoFilesInputEl.addEventListener('change', async function(e) {
+                const selected = Array.from(e.target.files || []);
+                await processPhotoFiles(selected, false);
+            });
+        }
 
         const addMorePhotosBtn = document.getElementById('add-more-photos-btn');
         if (addMorePhotosBtn) {
             addMorePhotosBtn.addEventListener('click', () => {
-                document.getElementById('photo-files').click();
+                const input = document.getElementById('photo-files');
+                if (input) {
+                    input.value = '';
+                    input.click();
+                }
             });
         }
 
@@ -2575,12 +2629,12 @@
         const playerAddPhotosInput = document.getElementById('player-add-photos-input');
         if (playerAddPhotosBtn && playerAddPhotosInput) {
             playerAddPhotosBtn.addEventListener('click', () => {
+                playerAddPhotosInput.value = '';
                 playerAddPhotosInput.click();
             });
             playerAddPhotosInput.addEventListener('change', async function(e) {
                 const selected = Array.from(e.target.files || []);
                 await processPhotoFiles(selected, true);
-                e.target.value = '';
             });
         }
 
@@ -5040,83 +5094,42 @@
             }
             if (photos && photos.length > 1) {
                 slideShowInterval = setInterval(() => {
-                    // タブがバックグラウンドの場合や、前の写真ロード・トランジション実行中はスキップして安全待機
-                    if (document.hidden || isPhotoTransitioning) return;
-                    slidePhotoIndex = (slidePhotoIndex + 1) % photos.length;
-                    renderSlideDots(photos.length, slidePhotoIndex);
-                    updatePhotoNavUI(photos, slidePhotoIndex);
-                    showSlidePhoto(photos, slidePhotoIndex, true);
+                    if (document.hidden) return;
+                    const activePhotos = currentPeriodPhotos;
+                    if (!activePhotos || activePhotos.length <= 1) return;
+                    slidePhotoIndex = (slidePhotoIndex + 1) % activePhotos.length;
+                    showSlidePhoto(activePhotos, slidePhotoIndex);
                 }, 4000);
             }
         }
 
-        // 画像プリロードテスト関数 (iOS SafariのネイティブHEIC高速描画を最優先し、非対応ブラウザのみheic2anyへフォールバック)
-        function testImageLoad(url) {
-            return new Promise((resolve) => {
-                if (!url) return resolve(false);
-                const img = new Image();
-                img.onload = () => resolve(true);
-                img.onerror = () => resolve(false);
-                img.src = url;
-            });
+        // RAM上のBlobから同期的に即座に表示URLを取得（非同期ギャップ・競合ゼロ）
+        function getReadyPhotoUrlSync(file) {
+            if (!file) return null;
+            if (file._readyUrl) return file._readyUrl;
+            try {
+                const sourceBlob = file._ramBlob || file;
+                const url = URL.createObjectURL(sourceBlob);
+                file._readyUrl = url;
+                photoBlobUrlCache.set(file, url);
+                return url;
+            } catch (e) {
+                return null;
+            }
         }
 
-        async function getPhotoUrl(file) {
+        // 別アプリから戻った際などにOSに破棄されたBlob URLをRAM内のBlobから即座に再発行する
+        function refreshPhotoUrlFromRam(file) {
             if (!file) return null;
-            if (photoBlobUrlCache.has(file)) {
-                return photoBlobUrlCache.get(file);
+            try {
+                const sourceBlob = file._ramBlob || file;
+                const freshUrl = URL.createObjectURL(sourceBlob);
+                file._readyUrl = freshUrl;
+                photoBlobUrlCache.set(file, freshUrl);
+                return freshUrl;
+            } catch (e) {
+                return file._readyUrl || null;
             }
-
-            // 1. まずネイティブBlob URLを試行 (iPhone / Mac SafariではHEICもJPEGも数ミリ秒でネイティブ表示可能！)
-            let rawUrl = file._rawBlobUrl || null;
-            if (!rawUrl) {
-                try {
-                    rawUrl = URL.createObjectURL(file);
-                    file._rawBlobUrl = rawUrl;
-                } catch (e) {}
-            }
-
-            if (rawUrl) {
-                const canRenderNative = await testImageLoad(rawUrl);
-                if (canRenderNative) {
-                    photoBlobUrlCache.set(file, rawUrl);
-                    return rawUrl;
-                }
-            }
-
-            // 2. ネイティブ描画できないHEICファイルの場合のみ (PC版Chrome等)、heic2anyでJPEG変換
-            const isHeic = file.name && /\.(heic|heif)$/i.test(file.name);
-            if (isHeic && window.heic2any) {
-                try {
-                    let blobResult = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
-                    const jpegBlob = Array.isArray(blobResult) ? blobResult[0] : blobResult;
-                    const convUrl = URL.createObjectURL(jpegBlob);
-                    if (await testImageLoad(convUrl)) {
-                        photoBlobUrlCache.set(file, convUrl);
-                        return convUrl;
-                    }
-                } catch (e) {
-                    console.warn("heic2any conversion fallback:", e);
-                }
-            }
-
-            // 3. 最終フォールバック: DataURLとして読み込み
-            const dataUrl = await new Promise((resolve) => {
-                try {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.onerror = () => resolve(null);
-                    reader.readAsDataURL(file);
-                } catch (e) {
-                    resolve(null);
-                }
-            });
-
-            if (dataUrl && (await testImageLoad(dataUrl))) {
-                photoBlobUrlCache.set(file, dataUrl);
-                return dataUrl;
-            }
-            return null;
         }
 
         let currentDisplayedPeriodId = null;
@@ -5138,11 +5151,6 @@
             currentPeriodPhotos = photos; // グローバル保持
 
             updatePhotoSortModeUI(photos.length);
-
-            // 同一期間でかつ強制更新フラグがない場合は、既存のスライドショー表示を滑らかに維持
-            if (!forceRefresh && currentDisplayedPeriodId === periodId && photos.length > 0) {
-                return;
-            }
             currentDisplayedPeriodId = periodId;
 
             if (slideShowInterval) {
@@ -5154,6 +5162,10 @@
                 fadeTransitionTimer = null;
             }
             isPhotoTransitioning = false;
+
+            // レイヤーBは完全非表示に固定し、二重レイヤー競合によるブラックアウトを物理的に根絶
+            if (mainB) { mainB.style.display = 'none'; mainB.style.opacity = '0'; mainB.removeAttribute('src'); }
+            if (blurB) { blurB.style.display = 'none'; blurB.style.opacity = '0'; blurB.removeAttribute('src'); }
 
             indicator.innerHTML = '';
             indicator.classList.add('hidden');
@@ -5167,17 +5179,14 @@
 
             if (photos && photos.length > 0) {
                 emptyLayer.classList.add('hidden');
-
-                slidePhotoIndex = 0;
-                updatePhotoNavUI(photos, 0);
                 if (photos.length > 1) {
                     indicator.classList.remove('hidden');
-                    renderSlideDots(photos.length, 0);
                 } else {
                     indicator.classList.add('hidden');
                 }
 
-                showSlidePhoto(photos, 0, false);
+                slidePhotoIndex = 0;
+                showSlidePhoto(photos, 0);
 
                 if (photos.length > 1) {
                     restartSlideshowTimer(photos);
@@ -5186,14 +5195,11 @@
                 updatePhotoNavUI([], 0);
                 updatePhotoSortModeUI(0);
                 currentPhotoSrc = null;
-                activePhotoLayer = 'a';
                 const subDateBadge = document.getElementById('photo-date-sub-badge');
                 if (subDateBadge) subDateBadge.classList.add('hidden');
 
-                if (mainA) { mainA.style.transition = 'none'; mainA.style.opacity = '0'; mainA.src = ''; }
-                if (mainB) { mainB.style.transition = 'none'; mainB.style.opacity = '0'; mainB.src = ''; }
-                if (blurA) { blurA.style.transition = 'none'; blurA.style.opacity = '0'; blurA.src = ''; }
-                if (blurB) { blurB.style.transition = 'none'; blurB.style.opacity = '0'; blurB.src = ''; }
+                if (mainA) { mainA.style.transition = 'none'; mainA.style.opacity = '0'; mainA.removeAttribute('src'); }
+                if (blurA) { blurA.style.transition = 'none'; blurA.style.opacity = '0'; blurA.removeAttribute('src'); }
                 if (loadingLayer) loadingLayer.classList.add('hidden');
                 emptyLayer.classList.remove('hidden');
             }
@@ -5213,27 +5219,33 @@
             displayPhotosForPeriod(period, forceRefresh);
         }
 
-        async function showSlidePhoto(photos, idx, isSlideSwitch = false) {
+        // 単一レイヤー完全同期型の写真表示関数（ドット・枚数表示・画像切り替えを同一フレームで完全一致させる）
+        function showSlidePhoto(photos, idx) {
             if (!photos || photos.length === 0) return;
             const safeIdx = ((idx % photos.length) + photos.length) % photos.length;
+            slidePhotoIndex = safeIdx;
             const file = photos[safeIdx];
             if (!file) return;
 
-            // リクエストIDをインクリメント＆トランジション中フラグを即時セット（4秒タイマーによる割り込みキャンセルを防止）
-            const reqId = ++photoLoadRequestId;
-            isPhotoTransitioning = true;
+            // ドット（・・ー・）と枚数（1/5枚）を画像の切り替えと同時に同期更新
+            if (photos.length > 1) {
+                renderSlideDots(photos.length, safeIdx);
+            }
+            updatePhotoNavUI(photos, safeIdx);
 
+            const mainA = document.getElementById('photo-main-a');
+            const mainB = document.getElementById('photo-main-b');
+            const blurA = document.getElementById('photo-blur-a');
+            const blurB = document.getElementById('photo-blur-b');
             const emptyLayer = document.getElementById('photo-empty-layer');
             const errorLayer = document.getElementById('photo-error-layer');
             const loadingLayer = document.getElementById('photo-loading-layer');
 
-            emptyLayer.classList.add('hidden');
+            if (emptyLayer) emptyLayer.classList.add('hidden');
             if (errorLayer) errorLayer.classList.add('hidden');
-
-            // 初回表示時のみスピナーを表示。切り替え時は画面を暗転させない！
-            if (!isSlideSwitch && !currentPhotoSrc && loadingLayer) {
-                loadingLayer.classList.remove('hidden');
-            }
+            if (loadingLayer) loadingLayer.classList.add('hidden');
+            if (mainB) { mainB.style.display = 'none'; mainB.style.opacity = '0'; }
+            if (blurB) { blurB.style.display = 'none'; blurB.style.opacity = '0'; }
 
             // 撮影日サブバッジの更新 (週・月振り返り時は写真ごとの日付を表示)
             const subDateBadge = document.getElementById('photo-date-sub-badge');
@@ -5246,247 +5258,103 @@
                 }
             }
 
-            // getPhotoUrl 内部でプリロード＆デコード確認済みのため、完了後すぐ同期的にレイヤーへ適用可能
-            const nextUrl = await getPhotoUrl(file);
-
-            // 待機中に次の写真要求が発生していたら即座に破棄
-            if (reqId !== photoLoadRequestId) return;
-
+            let nextUrl = getReadyPhotoUrlSync(file);
             if (!nextUrl) {
-                isPhotoTransitioning = false;
-                handlePhotoLoadError(photos, safeIdx, isSlideSwitch);
+                ensurePhotoInMemory(file).then((url) => {
+                    if (url && slidePhotoIndex === safeIdx) {
+                        applySingleLayerPhoto(url, file);
+                    }
+                });
                 return;
             }
 
-            applyPhotoToLayers(nextUrl, isSlideSwitch, reqId);
+            applySingleLayerPhoto(nextUrl, file);
         }
 
-        function applyPhotoToLayers(newSrc, isSlideSwitch, reqId = photoLoadRequestId) {
+        function applySingleLayerPhoto(url, file) {
             const mainA = document.getElementById('photo-main-a');
-            const mainB = document.getElementById('photo-main-b');
             const blurA = document.getElementById('photo-blur-a');
-            const blurB = document.getElementById('photo-blur-b');
-            const loadingLayer = document.getElementById('photo-loading-layer');
-            const errorLayer = document.getElementById('photo-error-layer');
+            if (!mainA) return;
 
-            if (loadingLayer) loadingLayer.classList.add('hidden');
-            if (errorLayer) errorLayer.classList.add('hidden');
+            mainA.classList.remove('opacity-0', 'hidden');
+            if (blurA) blurA.classList.remove('opacity-0', 'hidden');
 
-            // Tailwindの初期クラス opacity-0 がインラインスタイルと競合しないよう除去
-            [mainA, mainB, blurA, blurB].forEach(el => {
-                if (el) el.classList.remove('opacity-0');
-            });
+            mainA.style.display = 'block';
+            mainA.style.transition = 'none';
+            mainA.style.zIndex = '20';
+            mainA.style.opacity = '1';
 
-            if (fadeTransitionTimer) {
-                clearTimeout(fadeTransitionTimer);
-                fadeTransitionTimer = null;
-            }
-
-            // 初回表示・期間変更時・または「＜」「＞」手動操作時は即座にレイヤーAへ確実表示（遅延・競合ゼロ）
-            if (!isSlideSwitch || !currentPhotoSrc) {
-                activePhotoLayer = 'a';
-                isPhotoTransitioning = false;
-
-                mainA.style.transition = 'none';
+            if (blurA) {
+                blurA.style.display = 'block';
                 blurA.style.transition = 'none';
-                mainB.style.transition = 'none';
-                blurB.style.transition = 'none';
-
-                mainA.style.zIndex = '20';
                 blurA.style.zIndex = '5';
-                mainB.style.zIndex = '10';
-                blurB.style.zIndex = '0';
-
-                mainA.src = newSrc;
-                blurA.src = newSrc;
-                mainA.style.opacity = '1';
                 blurA.style.opacity = '1';
-
-                mainB.style.opacity = '0';
-                blurB.style.opacity = '0';
-                mainB.src = '';
-                blurB.src = '';
-
-                currentPhotoSrc = newSrc;
-                photoLoadConsecutiveFailures = 0;
-                return;
             }
 
-            // 自動スライドショー時のクロスフェード（完全同期・非同期ギャップなし）
-            isPhotoTransitioning = true;
-
-            const isA = (activePhotoLayer === 'a');
-            const currentMain = isA ? mainA : mainB;
-            const currentBlur = isA ? blurA : blurB;
-            const nextMain = isA ? mainB : mainA;
-            const nextBlur = isA ? blurB : blurA;
-
-            // 現在表示中レイヤーを奥へ配置（opacityは1のまま維持）
-            currentMain.style.transition = 'none';
-            currentBlur.style.transition = 'none';
-            currentMain.style.opacity = '1';
-            currentBlur.style.opacity = '1';
-            currentMain.style.zIndex = '10';
-            currentBlur.style.zIndex = '0';
-
-            // 待機中レイヤーを手前に準備
-            nextMain.style.transition = 'none';
-            nextBlur.style.transition = 'none';
-            nextMain.style.opacity = '0';
-            nextBlur.style.opacity = '0';
-            nextMain.style.zIndex = '20';
-            nextBlur.style.zIndex = '5';
-
-            nextMain.src = newSrc;
-            nextBlur.src = newSrc;
-
-            // アクティブレイヤーを即座に更新（途中で別操作が入っても整合性が崩れない）
-            activePhotoLayer = isA ? 'b' : 'a';
-            currentPhotoSrc = newSrc;
-            photoLoadConsecutiveFailures = 0;
-
-            // 強制リフローを実行してスタイル変更を同期フラッシュ
-            void nextMain.offsetWidth;
-
-            // 手前レイヤーを滑らかにフェードイン (0.55秒)
-            nextMain.style.transition = 'opacity 0.55s ease-in-out';
-            nextBlur.style.transition = 'opacity 0.55s ease-in-out';
-            nextMain.style.opacity = '1';
-            nextBlur.style.opacity = '1';
-
-            // フェードイン完了後、奥に回った古いレイヤーのopacityを0にして待機
-            fadeTransitionTimer = setTimeout(() => {
-                if (reqId !== photoLoadRequestId) return;
-                currentMain.style.transition = 'none';
-                currentBlur.style.transition = 'none';
-                currentMain.style.opacity = '0';
-                currentBlur.style.opacity = '0';
-                currentMain.src = '';
-                currentBlur.src = '';
-                fadeTransitionTimer = null;
-                isPhotoTransitioning = false;
-
-                if (nextMain && nextMain.style.opacity !== '1') {
-                    nextMain.style.opacity = '1';
-                    if (nextBlur) nextBlur.style.opacity = '1';
+            // 万一バックグラウンド復帰等でBlob URLが失効していた場合、RAM内のBlob/DataURLから自動自己修復
+            mainA.onerror = function() {
+                mainA.onerror = null;
+                if (!file) return;
+                if (file._dataUrlFallback) {
+                    mainA.src = file._dataUrlFallback;
+                    if (blurA) blurA.src = file._dataUrlFallback;
+                    return;
                 }
-            }, 600);
-        }
+                const sourceBlob = file._ramBlob || file;
+                try {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        if (e.target && e.target.result) {
+                            file._dataUrlFallback = e.target.result;
+                            file._readyUrl = e.target.result;
+                            mainA.src = e.target.result;
+                            if (blurA) blurA.src = e.target.result;
+                        }
+                    };
+                    reader.readAsDataURL(sourceBlob);
+                } catch (err) {}
+            };
 
-        let photoLoadConsecutiveFailures = 0;
-
-        function handlePhotoLoadError(photos, failedIdx, isSlideSwitch) {
-            const loadingLayer = document.getElementById('photo-loading-layer');
-            if (loadingLayer) loadingLayer.classList.add('hidden');
-            isPhotoTransitioning = false;
-
-            photoLoadConsecutiveFailures++;
-
-            // 写真枚数以上の回数連続で失敗した場合、全写真が読み込めないと判定して安全に停止
-            if (!photos || photos.length <= 1 || photoLoadConsecutiveFailures >= photos.length) {
-                photoLoadConsecutiveFailures = 0;
-                if (slideShowInterval) {
-                    clearInterval(slideShowInterval);
-                    slideShowInterval = null;
-                }
-                const mainA = document.getElementById('photo-main-a');
-                const mainB = document.getElementById('photo-main-b');
-                const blurA = document.getElementById('photo-blur-a');
-                const blurB = document.getElementById('photo-blur-b');
-                const errorLayer = document.getElementById('photo-error-layer');
-
-                if (mainA) { mainA.style.opacity = '0'; mainA.src = ''; }
-                if (mainB) { mainB.style.opacity = '0'; mainB.src = ''; }
-                if (blurA) { blurA.style.opacity = '0'; blurA.src = ''; }
-                if (blurB) { blurB.style.opacity = '0'; blurB.src = ''; }
-                if (errorLayer) errorLayer.classList.remove('hidden');
-                return;
-            }
-
-            // 次の写真を試行（同期ループを完全防止するため遅延実行）
-            console.warn(`写真[${failedIdx}]の表示に失敗したため、次の写真を試行します。(連続失敗: ${photoLoadConsecutiveFailures}/${photos.length})`);
-            slidePhotoIndex = (failedIdx + 1) % photos.length;
-            renderSlideDots(photos.length, slidePhotoIndex);
-            updatePhotoNavUI(photos, slidePhotoIndex);
-
-            setTimeout(() => {
-                showSlidePhoto(photos, slidePhotoIndex, isSlideSwitch);
-            }, 300);
+            mainA.src = url;
+            if (blurA) blurA.src = url;
+            currentPhotoSrc = url;
         }
 
         function restorePhotoDisplayState() {
-            const mainA = document.getElementById('photo-main-a');
-            const mainB = document.getElementById('photo-main-b');
-            const blurA = document.getElementById('photo-blur-a');
-            const blurB = document.getElementById('photo-blur-b');
-
-            if (fadeTransitionTimer) {
-                clearTimeout(fadeTransitionTimer);
-                fadeTransitionTimer = null;
-            }
-            isPhotoTransitioning = false;
-
-            if (currentPhotoSrc) {
-                // レイヤーAを表示用、レイヤーBを待機用として完全に同期固定
-                activePhotoLayer = 'a';
-                if (mainA) {
-                    mainA.style.transition = 'none';
-                    if (mainA.src !== currentPhotoSrc) mainA.src = currentPhotoSrc;
-                    mainA.style.opacity = '1';
-                    mainA.style.zIndex = '20';
+            const photos = currentPeriodPhotos;
+            if (photos && photos.length > 0) {
+                const safeIdx = ((slidePhotoIndex % photos.length) + photos.length) % photos.length;
+                const file = photos[safeIdx];
+                if (file) {
+                    // 別アプリから戻った際もRAM内Blobから新しいURLを再発行して確実に再描画
+                    refreshPhotoUrlFromRam(file);
                 }
-                if (blurA) {
-                    blurA.style.transition = 'none';
-                    if (blurA.src !== currentPhotoSrc) blurA.src = currentPhotoSrc;
-                    blurA.style.opacity = '1';
-                    blurA.style.zIndex = '5';
-                }
-                if (mainB) {
-                    mainB.style.transition = 'none';
-                    mainB.style.opacity = '0';
-                    mainB.style.zIndex = '10';
-                    mainB.src = '';
-                }
-                if (blurB) {
-                    blurB.style.transition = 'none';
-                    blurB.style.opacity = '0';
-                    blurB.style.zIndex = '0';
-                    blurB.src = '';
-                }
+                showSlidePhoto(photos, safeIdx);
             }
         }
 
-        // Page Visibility API: 別タブやアプリ切り替えによるフリーズ・ブラックアウトを完全防止
+        // 別タブや別アプリ切り替え（LINE・アンケート画面等）からの復帰時に写真を確実に即時再描画
         document.addEventListener('visibilitychange', () => {
             const photos = currentPeriodPhotos;
-
             if (document.hidden) {
-                // バックグラウンド移行時: 非同期要求を破棄＆タイマー安全停止
-                photoLoadRequestId++;
                 if (slideShowInterval) {
                     clearInterval(slideShowInterval);
                     slideShowInterval = null;
                 }
-                if (fadeTransitionTimer) {
-                    clearTimeout(fadeTransitionTimer);
-                    fadeTransitionTimer = null;
-                }
-                isPhotoTransitioning = false;
             } else {
-                // フォアグラウンド復帰時:
-                // 1. 保留中の非同期処理を破棄
-                photoLoadRequestId++;
-                // 2. 表示レイヤー状態を完全同期・修復
                 restorePhotoDisplayState();
-                // 3. ブラウザの描画コンテキストが安定する安全マージン（150ms）後にタイマー再起動
                 if (photos && photos.length > 1) {
-                    setTimeout(() => {
-                        if (!document.hidden && currentPeriodPhotos === photos) {
-                            restartSlideshowTimer(photos);
-                        }
-                    }, 150);
+                    restartSlideshowTimer(photos);
                 }
             }
+        });
+
+        window.addEventListener('pageshow', () => {
+            restorePhotoDisplayState();
+        });
+
+        window.addEventListener('focus', () => {
+            restorePhotoDisplayState();
         });
 
         // 手動で指定インデックスの写真へ即座に切り替える共通関数
@@ -5494,10 +5362,7 @@
             const photos = currentPeriodPhotos;
             if (!photos || photos.length <= 1) return;
             slidePhotoIndex = ((targetIdx % photos.length) + photos.length) % photos.length;
-            renderSlideDots(photos.length, slidePhotoIndex);
-            updatePhotoNavUI(photos, slidePhotoIndex);
-            // 手動切り替え時は isSlideSwitch = false で即座に確実表示
-            showSlidePhoto(photos, slidePhotoIndex, false);
+            showSlidePhoto(photos, slidePhotoIndex);
             restartSlideshowTimer(photos);
         }
 
