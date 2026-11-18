@@ -50,6 +50,19 @@
             </div>
             
             <div class="px-4">
+                <!-- LINEアプリ内ブラウザ検出時の案内バナー (通常ブラウザでは非表示) -->
+                <div id="line-browser-banner" class="hidden mb-3.5 p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 shadow-xs">
+                    <p class="font-bold text-amber-900 mb-1 flex items-center">
+                        <span class="mr-1">⚠️</span> LINEアプリ内ブラウザで開かれています
+                    </p>
+                    <p class="text-[11px] text-amber-800 leading-relaxed mb-2">
+                        LINE内で開いたままアンケート画面へ戻ると、読み込んだ写真がリセットされてしまいます。下のボタンを押すか、右下の「<strong>…</strong>」から「<strong>ブラウザ（Safari / Chrome）で開く</strong>」を推奨します。
+                    </p>
+                    <button type="button" onclick="openInExternalBrowserFromLine()" class="w-full py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-2xs transition active:scale-95 cursor-pointer">
+                        🌐 標準ブラウザ（Safari / Chrome）で開く
+                    </button>
+                </div>
+
                 <!-- 設定セクション（データ入力画面） -->
                 <div id="setup-section">
                     <!-- 操作説明バナー -->
@@ -691,6 +704,30 @@
             </div>
         </div>
 
+        <!-- ========================================== -->
+        <!-- 全履歴初期化の確認モーダル (LINE内ブラウザ等のconfirmブロック対策) -->
+        <!-- ========================================== -->
+        <div id="reset-history-confirm-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-gray-800">
+                <div class="text-center mb-4">
+                    <span class="inline-block p-3 bg-red-100 text-red-600 rounded-full mb-2 text-2xl font-bold">🗑️</span>
+                    <h3 class="text-base font-bold text-gray-900">全履歴・進行状況の初期化</h3>
+                    <p class="text-xs text-gray-600 mt-2 leading-relaxed">
+                        保存されている音楽サブスク再生履歴・手動追加曲、および実験の進行状況（鑑賞済み記録）をすべてリセットしますか？<br>
+                        <span class="text-[11px] text-gray-400">（※読み込んだ写真もリセットされます）</span>
+                    </p>
+                </div>
+                <div class="space-y-2">
+                    <button type="button" onclick="executeResetStreamingHistory()" class="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow transition active:scale-95 cursor-pointer">
+                        すべて初期化する
+                    </button>
+                    <button type="button" onclick="closeResetHistoryConfirmModal()" class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition cursor-pointer">
+                        キャンセル
+                    </button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- スライドショー切り替えフッター（画面最下部） -->
@@ -916,6 +953,37 @@
         let appUsageMode = null;            // 'experiment' (実験用モード) | 'free' (自由鑑賞モード)
         let visitedSlideshows = [];         // 鑑賞済みスライドショー配列 ['none', 'free', 'memory']
         let pendingModeSwitchTarget = null; // 確認モーダルで保留中の切替先
+        let hasWatchedCurrentSlideshow = false; // 現在のスライドショーを実際にプレーヤー画面で開始したか
+
+        const APP_BUILD_VERSION = '20261118_v4';
+
+        // LINEアプリ内ブラウザの検出・キャッシュ破棄・外部ブラウザ誘導
+        function checkLineInAppBrowser() {
+            try {
+                const ua = navigator.userAgent || '';
+                const isLine = /\bLine\//i.test(ua);
+                if (!isLine) return;
+
+                // LINE内ブラウザの強力なHTMLキャッシュ対策: 最新ビルドパラメータがなければ1回だけキャッシュバストリロード
+                const curUrl = new URL(window.location.href);
+                if (curUrl.searchParams.get('_v') !== APP_BUILD_VERSION) {
+                    curUrl.searchParams.set('_v', APP_BUILD_VERSION);
+                    window.location.replace(curUrl.toString());
+                    return;
+                }
+
+                const banner = document.getElementById('line-browser-banner');
+                if (banner) banner.classList.remove('hidden');
+            } catch (e) {}
+        }
+
+        function openInExternalBrowserFromLine() {
+            try {
+                const curUrl = new URL(window.location.href);
+                curUrl.searchParams.set('openExternalBrowser', '1');
+                window.location.href = curUrl.toString();
+            } catch (e) {}
+        }
 
         const slideshowLabels = {
             'none': 'スライドショーA (BGMなし)',
@@ -924,6 +992,7 @@
         };
 
         function initAppMode() {
+            checkLineInAppBrowser();
             try {
                 const savedUsage = localStorage.getItem('study_usage_mode');
                 const hasSelectedInitial = localStorage.getItem('study_initial_slideshow_selected') === '1';
@@ -935,15 +1004,26 @@
                     appUsageMode = null; // 初回モーダル表示
                 }
 
-                const savedVisited = localStorage.getItem('study_visited_slideshows');
-                if (savedVisited) {
+                // 初回未選択状態やリセット直後の場合は鑑賞済み配列を必ず空にクリア（古いキャッシュの残留を完全防止）
+                if (!appUsageMode) {
+                    visitedSlideshows = [];
                     try {
-                        visitedSlideshows = JSON.parse(savedVisited) || [];
-                    } catch(e) {
+                        localStorage.setItem('study_visited_slideshows', '[]');
+                        localStorage.removeItem('study_visited_slideshows');
+                        sessionStorage.removeItem('study_visited_slideshows');
+                    } catch(e) {}
+                } else {
+                    const savedVisited = localStorage.getItem('study_visited_slideshows');
+                    if (savedVisited) {
+                        try {
+                            const parsed = JSON.parse(savedVisited);
+                            visitedSlideshows = Array.isArray(parsed) ? parsed : [];
+                        } catch(e) {
+                            visitedSlideshows = [];
+                        }
+                    } else {
                         visitedSlideshows = [];
                     }
-                } else {
-                    visitedSlideshows = [];
                 }
 
                 const urlParams = new URLSearchParams(window.location.search);
@@ -956,6 +1036,9 @@
                         currentAppMode = saved;
                     }
                 }
+
+                // 現在選択中のモードが万一 visitedSlideshows に入っていた場合は除外して矛盾を防止
+                visitedSlideshows = visitedSlideshows.filter(m => m !== currentAppMode);
             } catch(e) {}
 
             updateUsageModeUI();
@@ -1017,10 +1100,14 @@
             }
             appUsageMode = 'experiment';
             visitedSlideshows = [];
+            pendingModeSwitchTarget = null;
+            hasWatchedCurrentSlideshow = false;
             try {
                 localStorage.setItem('study_usage_mode', 'experiment');
                 localStorage.setItem('study_initial_slideshow_selected', '1');
+                localStorage.setItem('study_visited_slideshows', '[]');
                 localStorage.removeItem('study_visited_slideshows');
+                sessionStorage.removeItem('study_visited_slideshows');
             } catch(e) {}
 
             closeUsageModeModal();
@@ -1042,13 +1129,43 @@
 
         function resetExperimentProgress() {
             visitedSlideshows = [];
+            pendingModeSwitchTarget = null;
+            hasWatchedCurrentSlideshow = false;
             try {
+                localStorage.setItem('study_visited_slideshows', '[]');
                 localStorage.removeItem('study_visited_slideshows');
                 localStorage.removeItem('study_initial_slideshow_selected');
+                localStorage.removeItem('study_app_mode');
+                sessionStorage.removeItem('study_visited_slideshows');
             } catch(e) {}
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('mode');
+                window.history.replaceState({}, '', url.toString());
+            } catch(e) {}
+
             const settingsModal = document.getElementById('settings-modal');
             if (settingsModal) settingsModal.classList.add('hidden');
+            const switchModal = document.getElementById('switch-confirm-modal');
+            if (switchModal) switchModal.classList.add('hidden');
+
+            // プレーヤー画面が開いていた場合は音声・タイマーを止めて初期設定画面へ戻す（読み込んだ写真や履歴は維持）
+            const setupSection = document.getElementById('setup-section');
+            const playerSection = document.getElementById('player-section');
+            const audioPlayer = document.getElementById('audio-player');
+            if (audioPlayer) {
+                audioPlayer.pause();
+                audioPlayer.src = '';
+            }
+            if (slideShowInterval) {
+                clearInterval(slideShowInterval);
+                slideShowInterval = null;
+            }
+            if (playerSection) playerSection.classList.add('hidden');
+            if (setupSection) setupSection.classList.remove('hidden');
+
             updateModeSwitchBarUI();
+            renderCurrentAppModeHome();
             openUsageModeModal(2);
             showToast('🔄 実験の進行状況をリセットしました。最初のスライドショーを選択してください');
         }
@@ -1091,7 +1208,7 @@
 
             // 現在鑑賞中のスライドショーと同じ場合
             if (targetMode === currentAppMode) {
-                showToast(`現在 ${slideshowLabels[targetMode]} を鑑賞中です`);
+                showToast(`現在 ${slideshowLabels[targetMode]} が選択されています`);
                 return;
             }
 
@@ -1101,10 +1218,22 @@
                 return;
             }
 
+            // まだ初期設定画面（#setup-section）にいて一度もスライドショーを開始していない段階なら、
+            // 変更前のスライドショーを「鑑賞済」にせず、そのまま開始スライドショーを変更する
+            const playerSection = document.getElementById('player-section');
+            const isSetupScreenOnly = (!playerSection || playerSection.classList.contains('hidden')) && !hasWatchedCurrentSlideshow && visitedSlideshows.length === 0;
+            if (isSetupScreenOnly) {
+                executeAppModeSwitch(targetMode);
+                return;
+            }
+
             // 実験用モードの場合
             // ① すでに鑑賞済みのスライドショーへ戻ろうとした場合はブロック
             if (visitedSlideshows.includes(targetMode)) {
-                alert(`【鑑賞済みのため戻れません】\n${slideshowLabels[targetMode]} はすでに鑑賞完了しています。\n実験の公平性（順序効果の防止）のため、前のスライドショーに戻ることはできません。`);
+                showToast(`⚠️ ${slideshowLabels[targetMode]} は鑑賞済みのため戻れません`);
+                try {
+                    alert(`【鑑賞済みのため戻れません】\n${slideshowLabels[targetMode]} はすでに鑑賞完了しています。\n実験の公平性（順序効果の防止）のため、前のスライドショーに戻ることはできません。`);
+                } catch(e) {}
                 return;
             }
 
@@ -1142,8 +1271,15 @@
 
         function executeAppModeSwitch(mode) {
             currentAppMode = mode;
+            // これから鑑賞するモードが万一 visitedSlideshows に残っていた場合は確実に除外する
+            visitedSlideshows = visitedSlideshows.filter(m => m !== mode);
             try {
                 localStorage.setItem('study_app_mode', mode);
+                if (visitedSlideshows.length > 0) {
+                    localStorage.setItem('study_visited_slideshows', JSON.stringify(visitedSlideshows));
+                } else {
+                    localStorage.removeItem('study_visited_slideshows');
+                }
             } catch(e) {}
 
             try {
@@ -1160,6 +1296,7 @@
             if (setupSection && !setupSection.classList.contains('hidden')) {
                 renderCurrentAppModeHome();
             } else if (playerSection && !playerSection.classList.contains('hidden')) {
+                hasWatchedCurrentSlideshow = true;
                 // スライドショーの切り替え競合を防止: 進行中の非同期トランジションをリセットして安全な表示を維持
                 photoLoadRequestId++;
                 if (fadeTransitionTimer) {
@@ -2159,13 +2296,43 @@
             });
         }
 
-        async function confirmResetStreamingHistory() {
-            if (confirm("【初期化】ブラウザに保存されているすべての音楽サブスク再生履歴・手動追加曲をリセットしますか？\n（※読み込んだ写真はリロードで自動消去されます）")) {
-                try {
-                    await localforage.clear();
-                } catch (e) {}
-                location.reload();
+        function confirmResetStreamingHistory() {
+            const modal = document.getElementById('reset-history-confirm-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
             }
+        }
+
+        function closeResetHistoryConfirmModal() {
+            const modal = document.getElementById('reset-history-confirm-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+        }
+
+        async function executeResetStreamingHistory() {
+            closeResetHistoryConfirmModal();
+            visitedSlideshows = [];
+            pendingModeSwitchTarget = null;
+            hasWatchedCurrentSlideshow = false;
+            try {
+                await localforage.clear();
+            } catch (e) {}
+            try {
+                localStorage.setItem('study_visited_slideshows', '[]');
+                localStorage.removeItem('study_visited_slideshows');
+                localStorage.removeItem('study_initial_slideshow_selected');
+                localStorage.removeItem('study_app_mode');
+                sessionStorage.clear();
+            } catch (e) {}
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('mode');
+                url.searchParams.set('_v', APP_BUILD_VERSION);
+                window.location.replace(url.toString());
+                return;
+            } catch (e) {}
+            location.reload();
         }
 
         const resetAllBtn = document.getElementById('reset-all-btn');
@@ -3002,6 +3169,7 @@
                 return;
             }
 
+            hasWatchedCurrentSlideshow = true;
             document.getElementById('setup-section').classList.add('hidden');
             document.getElementById('player-section').classList.remove('hidden');
             
