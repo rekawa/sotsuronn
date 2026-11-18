@@ -50,19 +50,6 @@
             </div>
             
             <div class="px-4">
-                <!-- LINEアプリ内ブラウザ検出時の案内バナー (通常ブラウザでは非表示) -->
-                <div id="line-browser-banner" class="hidden mb-3.5 p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 shadow-xs">
-                    <p class="font-bold text-amber-900 mb-1 flex items-center">
-                        <span class="mr-1">⚠️</span> LINEアプリ内ブラウザで開かれています
-                    </p>
-                    <p class="text-[11px] text-amber-800 leading-relaxed mb-2">
-                        LINE内で開いたままアンケート画面へ戻ると、読み込んだ写真がリセットされてしまいます。下のボタンを押すか、右下の「<strong>…</strong>」から「<strong>ブラウザ（Safari / Chrome）で開く</strong>」を推奨します。
-                    </p>
-                    <button type="button" onclick="openInExternalBrowserFromLine()" class="w-full py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-2xs transition active:scale-95 cursor-pointer">
-                        🌐 標準ブラウザ（Safari / Chrome）で開く
-                    </button>
-                </div>
-
                 <!-- 設定セクション（データ入力画面） -->
                 <div id="setup-section">
                     <!-- 操作説明バナー -->
@@ -955,33 +942,18 @@
         let pendingModeSwitchTarget = null; // 確認モーダルで保留中の切替先
         let hasWatchedCurrentSlideshow = false; // 現在のスライドショーを実際にプレーヤー画面で開始したか
 
-        const APP_BUILD_VERSION = '20261118_v4';
+        const APP_BUILD_VERSION = '20261118_v5';
 
-        // LINEアプリ内ブラウザの検出・キャッシュ破棄・外部ブラウザ誘導
+        // LINEアプリ内ブラウザのHTMLキャッシュ対策: 古いキャッシュが残らないよう最新ビルド番号で1回だけリロード
         function checkLineInAppBrowser() {
             try {
                 const ua = navigator.userAgent || '';
-                const isLine = /\bLine\//i.test(ua);
-                if (!isLine) return;
-
-                // LINE内ブラウザの強力なHTMLキャッシュ対策: 最新ビルドパラメータがなければ1回だけキャッシュバストリロード
+                if (!/\bLine\//i.test(ua)) return;
                 const curUrl = new URL(window.location.href);
                 if (curUrl.searchParams.get('_v') !== APP_BUILD_VERSION) {
                     curUrl.searchParams.set('_v', APP_BUILD_VERSION);
                     window.location.replace(curUrl.toString());
-                    return;
                 }
-
-                const banner = document.getElementById('line-browser-banner');
-                if (banner) banner.classList.remove('hidden');
-            } catch (e) {}
-        }
-
-        function openInExternalBrowserFromLine() {
-            try {
-                const curUrl = new URL(window.location.href);
-                curUrl.searchParams.set('openExternalBrowser', '1');
-                window.location.href = curUrl.toString();
             } catch (e) {}
         }
 
