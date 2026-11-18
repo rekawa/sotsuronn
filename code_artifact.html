@@ -73,7 +73,14 @@
                         </h2>
 
                         <div id="streaming-input-area">
-                            <input type="file" id="streaming-file" multiple accept=".json,.csv" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer">
+                            <input type="file" id="streaming-file" multiple accept=".json,.csv" class="hidden">
+                            <div class="flex items-center">
+                                <label for="streaming-file" class="mr-3 py-2 px-3.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 active:scale-95 transition cursor-pointer inline-flex items-center gap-1 select-none shrink-0">
+                                    <span>🎵</span>
+                                    <span>ファイルを選択</span>
+                                </label>
+                                <span id="streaming-file-chosen-text" class="text-xs text-gray-500 truncate">選択されていません</span>
+                            </div>
                             <p id="streaming-loading" class="text-xs text-blue-500 mt-2 font-bold hidden">履歴ファイルを解析中... お待ちください</p>
                             
                             <!-- 履歴初期化ボタン (常時アクセス可能) -->
@@ -114,7 +121,14 @@
                             カメラ画像・スクリーンショットを選択してください。<span class="text-[11px] text-gray-400">（※何回でも追加可能）</span>
                         </p>
 
-                        <input type="file" id="photo-files" multiple accept="image/*" class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-pink-100 file:text-pink-700 hover:file:bg-pink-200 cursor-pointer">
+                        <input type="file" id="photo-files" multiple accept="image/*" class="hidden">
+                        <div class="flex items-center">
+                            <label for="photo-files" class="mr-3 py-2 px-3.5 rounded-full text-xs font-semibold bg-pink-100 text-pink-700 hover:bg-pink-200 active:scale-95 transition cursor-pointer inline-flex items-center gap-1 select-none shrink-0">
+                                <span>📷</span>
+                                <span>写真を選択</span>
+                            </label>
+                            <span id="photo-files-chosen-text" class="text-xs text-gray-500 truncate">選択されていません</span>
+                        </div>
                         <p id="photo-loading" class="text-xs text-blue-500 mt-2 font-bold hidden">写真の日時を解析中... お待ちください</p>
                         <p id="photo-status" class="text-xs text-green-600 mt-2 font-bold hidden">✓ 0枚の写真をストックしました</p>
 
@@ -2077,6 +2091,10 @@
 
             const fileCount = loadedStreamingFiles ? loadedStreamingFiles.length : 0;
             if (countEl) countEl.innerText = fileCount;
+            const streamingChosenTextEl = document.getElementById('streaming-file-chosen-text');
+            if (streamingChosenTextEl) {
+                streamingChosenTextEl.innerText = fileCount > 0 ? `${fileCount}件のファイル` : '選択されていません';
+            }
 
             const totalDays = Object.keys(rawStreamingData || {}).length;
             if (badgeEl) badgeEl.innerText = `累計 ${totalDays}日分`;
@@ -2637,6 +2655,10 @@
 
             const totalStocked = Object.values(photoDatabase).reduce((sum, arr) => sum + arr.length, 0);
             const dateList = Object.keys(photoDatabase).sort((a, b) => new Date(b) - new Date(a));
+            const photoChosenTextEl = document.getElementById('photo-files-chosen-text');
+            if (photoChosenTextEl) {
+                photoChosenTextEl.innerText = totalStocked > 0 ? `${totalStocked}枚の写真` : '選択されていません';
+            }
             
             if (!isFromPlayer && statusEl) {
                 statusEl.innerText = `✓ ${totalStocked}枚の写真をストックしました (累計 ${dateList.length}日分)`;
