@@ -692,21 +692,20 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 全履歴初期化の確認モーダル (LINE内ブラウザ等のconfirmブロック対策) -->
+        <!-- 全履歴初期化の確認モーダル -->
         <!-- ========================================== -->
         <div id="reset-history-confirm-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm p-4">
             <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-gray-800">
                 <div class="text-center mb-4">
                     <span class="inline-block p-3 bg-red-100 text-red-600 rounded-full mb-2 text-2xl font-bold">🗑️</span>
-                    <h3 class="text-base font-bold text-gray-900">全履歴・進行状況の初期化</h3>
+                    <h3 class="text-base font-bold text-gray-900">音楽履歴の初期化</h3>
                     <p class="text-xs text-gray-600 mt-2 leading-relaxed">
-                        保存されている音楽サブスク再生履歴・手動追加曲、および実験の進行状況（鑑賞済み記録）をすべてリセットしますか？<br>
-                        <span class="text-[11px] text-gray-400">（※読み込んだ写真もリセットされます）</span>
+                        読み込んだ音楽サブスクの履歴ファイルと、手動追加曲の履歴をすべて初期化しますか？
                     </p>
                 </div>
                 <div class="space-y-2">
                     <button type="button" onclick="executeResetStreamingHistory()" class="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow transition active:scale-95 cursor-pointer">
-                        すべて初期化する
+                        初期化する
                     </button>
                     <button type="button" onclick="closeResetHistoryConfirmModal()" class="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition cursor-pointer">
                         キャンセル
@@ -2284,27 +2283,27 @@
 
         async function executeResetStreamingHistory() {
             closeResetHistoryConfirmModal();
-            visitedSlideshows = [];
-            pendingModeSwitchTarget = null;
-            hasWatchedCurrentSlideshow = false;
+            rawStreamingData = {};
+            loadedStreamingFiles = [];
+            manualTracksData = {};
+            deletedTracksData = {};
+            periodCustomTrackOrder = {};
+            isStreamingReady = false;
+
             try {
-                await localforage.clear();
+                await localforage.removeItem('saved_streaming_history');
+                await localforage.removeItem('saved_streaming_files_meta');
+                await localforage.removeItem('saved_manual_tracks');
+                await localforage.removeItem('saved_deleted_tracks');
+                await localforage.removeItem('saved_custom_track_order');
             } catch (e) {}
-            try {
-                localStorage.setItem('study_visited_slideshows', '[]');
-                localStorage.removeItem('study_visited_slideshows');
-                localStorage.removeItem('study_initial_slideshow_selected');
-                localStorage.removeItem('study_app_mode');
-                sessionStorage.clear();
-            } catch (e) {}
-            try {
-                const url = new URL(window.location.href);
-                url.searchParams.delete('mode');
-                url.searchParams.set('_v', APP_BUILD_VERSION);
-                window.location.replace(url.toString());
-                return;
-            } catch (e) {}
-            location.reload();
+
+            const fileInput = document.getElementById('streaming-file');
+            if (fileInput) fileInput.value = '';
+
+            renderStreamingFilesList();
+            rebuildActivePeriodsList();
+            showToast('🗑️ 読み込んだ音楽履歴ファイルと手動追加曲を初期化しました');
         }
 
         const resetAllBtn = document.getElementById('reset-all-btn');
